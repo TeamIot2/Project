@@ -1,0 +1,16 @@
+{
+  "device_id": "esp32-node-01",
+  "gateway_id": "node-red-gw-01",
+  "timestamp": "2026-03-17T18:45:00.000Z",
+  "co2_ppm": 889,
+  "temperature_c": 22.8,
+  "humidity_pct": 45,
+  "pressure_hpa": 1009.5,
+  "light_lux": 232.3,
+  "sound_level_adc": 2103,
+  "sound_peak_adc": 2614,
+  "sound_rms_adc": 1956,
+  "sound_event": false,
+  "battery_v": 3.98,
+  "source": "mock-generator-v1"
+}

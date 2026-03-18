@@ -1,0 +1,6 @@
+{
+  "device_id": "esp32-node-01",
+  "co2_ppm": 889,
+  "temperature_c": 22.8,
+  "timestamp": "2026-03-17T18:45:00.000Z"
+}

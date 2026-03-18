@@ -1,0 +1,66 @@
+{
+  "captured_at": "2026-03-17T18:45:00.000Z",
+  "device_id": "esp32-node-01",
+  "frames": {
+    "bh1750": {
+      "bus": "i2c",
+      "address": "0x23",
+      "mode": "continuous_high_resolution",
+      "raw_bytes": [
+        0,
+        225
+      ],
+      "raw_value": 225,
+      "lux_formula": "raw / 1.2",
+      "lux_estimate": 187.5
+    },
+    "bme280": {
+      "bus": "i2c",
+      "address": "0x77",
+      "register_range": "0xF7-0xFE",
+      "raw_bytes": [
+        100,
+        90,
+        192,
+        126,
+        237,
+        0,
+        95,
+        144
+      ],
+      "raw_adc": {
+        "pressure": 410028,
+        "temperature": 519888,
+        "humidity": 24464
+      },
+      "note": "Compensation requires calibration registers from the sensor."
+    },
+    "mh_z19": {
+      "bus": "uart",
+      "baud": 9600,
+      "command_hex": "FF 01 86 00 00 00 00 00 79",
+      "response_hex": "FF 86 03 37 00 00 00 00 40",
+      "co2_ppm": 889
+    },
+    "max9814": {
+      "bus": "adc",
+      "adc_pin": "GPIO34",
+      "sample_rate_hz": 4000,
+      "samples": [
+        2048,
+        2082,
+        2121,
+        2180,
+        2254,
+        2310,
+        2194,
+        2102,
+        2056,
+        2029,
+        2041,
+        2077
+      ],
+      "note": "Example centered ADC waveform for envelope or RMS processing."
+    }
+  }
+}
