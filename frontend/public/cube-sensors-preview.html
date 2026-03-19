@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sensor Cube Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-1: #0b1220;
+        --bg-2: #17294a;
+        --panel: rgba(10, 18, 33, 0.76);
+        --border: rgba(176, 208, 255, 0.18);
+        --text: #ecf3ff;
+        --muted: #99accf;
+        --accent: #78cbff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(123, 194, 255, 0.2), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(255, 173, 135, 0.15), transparent 22%),
+          linear-gradient(160deg, var(--bg-1), var(--bg-2));
+        display: grid;
+        place-items: center;
+      }
+
+      .shell {
+        width: min(94vw, 1180px);
+        height: min(90vh, 800px);
+        border-radius: 30px;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        border: 1px solid var(--border);
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(18px);
+      }
+
+      .sidebar {
+        padding: 30px;
+        border-right: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 12px 0 10px;
+        font-size: 40px;
+        line-height: 1.05;
+      }
+
+      p {
+        margin: 0 0 22px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 12px;
+      }
+
+      li {
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 14px;
+      }
+
+      .viewer {
+        position: relative;
+      }
+
+      model-viewer {
+        width: 100%;
+        height: 100%;
+        --poster-color: transparent;
+        background:
+          radial-gradient(circle at center, rgba(255, 255, 255, 0.07), transparent 40%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+      }
+    </style>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  </head>
+  <body>
+    <section class="shell">
+      <aside class="sidebar">
+        <div class="eyebrow">3D Sensor Asset</div>
+        <h1>Storybook Cube</h1>
+        <p>
+          Simple illustrated sensor faces prepared for a rotating hero object.
+          Drag to inspect individual walls.
+        </p>
+        <ul>
+          <li>Front: Temperature</li>
+          <li>Right: Humidity</li>
+          <li>Back: CO2</li>
+          <li>Left: Pressure</li>
+          <li>Top: Light</li>
+          <li>Bottom: Noise</li>
+        </ul>
+      </aside>
+
+      <div class="viewer">
+        <model-viewer
+          src="./models/cube_asset_sensor_faces.glb"
+          alt="Sensor cube asset"
+          camera-controls
+          auto-rotate
+          rotation-per-second="18deg"
+          camera-orbit="38deg 72deg 3.2m"
+          min-camera-orbit="auto 30deg auto"
+          max-camera-orbit="auto 110deg auto"
+          shadow-intensity="1"
+          exposure="1.2"
+          environment-image="neutral"
+        ></model-viewer>
+      </div>
+    </section>
+  </body>
+</html>

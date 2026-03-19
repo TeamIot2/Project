@@ -59,6 +59,9 @@ const idealValues: Record<EnvironmentMode, Record<string, number>> = {
   office: { co2_ppm: 500, temperature_c: 22, humidity_pct: 50, pressure_hpa: 1013, light_lux: 400, noise_adc: 1900 },
   sport: { co2_ppm: 600, temperature_c: 18, humidity_pct: 45, pressure_hpa: 1013, light_lux: 300, noise_adc: 2000 },
   outdoor: { co2_ppm: 400, temperature_c: 20, humidity_pct: 50, pressure_hpa: 1013, light_lux: 1000, noise_adc: 2000 },
+  school: { co2_ppm: 500, temperature_c: 22, humidity_pct: 50, pressure_hpa: 1013, light_lux: 400, noise_adc: 1900 },
+  factory: { co2_ppm: 600, temperature_c: 18, humidity_pct: 45, pressure_hpa: 1013, light_lux: 300, noise_adc: 2000 },
+  greenhouse: { co2_ppm: 400, temperature_c: 24, humidity_pct: 65, pressure_hpa: 1013, light_lux: 1000, noise_adc: 1800 },
 };
 
 // Max deviation ranges — how far from ideal before it hits 100%

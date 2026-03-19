@@ -1,4 +1,4 @@
-// Dashboard page: air quality score, sensor cards with sparklines, environment selector
+// Dashboard page: air quality score, sensor cards with sparklines, environment selector.
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useEnvironment } from "../contexts/EnvironmentContext";
+import { useVisualStyle } from "../contexts/StyleContext";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
@@ -24,12 +25,18 @@ import {
   Heart,
   Bluetooth,
   ChevronDown,
+  Moon,
+  Briefcase,
+  GraduationCap,
+  Tree,
+  Factory,
+  Sprout,
 } from "../components/Icons";
 import type { EnvironmentMode } from "../types";
 
 /**
- * Circular carousel for environment cards.
- * Active card centered, neighbours visible and dimmed. Loops infinitely.
+ * Mobile environment strip.
+ * Horizontal scroll with one highlighted active card.
  */
 function EnvironmentCarousel({
   environments,
@@ -41,15 +48,6 @@ function EnvironmentCarousel({
   onSelect: (id: EnvironmentMode) => void;
 }) {
   const activeIndex = environments.findIndex((e) => e.id === activeId);
-
-  function getOffset(i: number): number {
-    const len = environments.length;
-    let diff = i - activeIndex;
-    // Wrap around for circular effect
-    if (diff > len / 2) diff -= len;
-    if (diff < -len / 2) diff += len;
-    return diff;
-  }
 
   function navigate(direction: number) {
     const len = environments.length;
@@ -63,22 +61,14 @@ function EnvironmentCarousel({
         ‹
       </button>
       <div className="env-carousel-track">
-        {environments.map((env, i) => {
-          const offset = getOffset(i);
-          const isActive = offset === 0;
-          const absOffset = Math.abs(offset);
+        {environments.map((env) => {
+          const isActive = env.id === activeId;
           return (
             <button
               key={env.id}
               className={`env-card ${isActive ? "active" : ""}`}
               data-env={env.id}
               onClick={() => onSelect(env.id)}
-              style={{
-                transform: `translateX(${offset * 85}%) scale(${isActive ? 1.1 : 0.8})`,
-                opacity: absOffset === 0 ? 1 : absOffset === 1 ? 0.45 : 0.2,
-                zIndex: 10 - absOffset,
-                filter: isActive ? "none" : "brightness(0.85)",
-              }}
             >
               <img src={env.img} alt={env.label} className="env-card-img" />
               <span className="env-card-label">{env.label}</span>
@@ -137,6 +127,86 @@ const iconMap: Record<string, typeof Wind> = {
   volume: Volume2,
   heart: Heart,
 };
+
+/**
+ * Compare current value vs oldest reading to determine trend direction and delta.
+ */
+function getTrend(key: string, current: number | null, readings: EnvironmentalReading[]): { direction: "up" | "down" | "stable"; delta: number } {
+  if (current === null || current === undefined || readings.length < 2) return { direction: "stable", delta: 0 };
+  const oldest = readings[0];
+  const oldValue = key === "noise_adc" ? oldest.sound_level_adc : (oldest[key as keyof EnvironmentalReading] as number);
+  if (oldValue === undefined) return { direction: "stable", delta: 0 };
+  const diff = current - oldValue;
+  const threshold = Math.abs(oldValue) * 0.02; // 2% change threshold
+  if (Math.abs(diff) < threshold) return { direction: "stable", delta: 0 };
+  return { direction: diff > 0 ? "up" : "down", delta: Math.round(Math.abs(diff) * 10) / 10 };
+}
+
+/**
+ * Generate a one-line insight describing the worst sensor condition.
+ * Used in the desktop hero panel.
+ */
+function generateInsight(
+  reading: EnvironmentalReading | null,
+  getQuality: (key: string, value: number) => "good" | "moderate" | "poor",
+  t: Translations
+): string {
+  if (!reading) return "";
+  const sensors = [
+    { key: "co2_ppm", value: reading.co2_ppm, label: t.sensor_co2 },
+    { key: "temperature_c", value: reading.temperature_c, label: t.sensor_temperature },
+    { key: "humidity_pct", value: reading.humidity_pct, label: t.sensor_humidity },
+    { key: "light_lux", value: reading.light_lux, label: t.sensor_light },
+  ];
+  const poor = sensors.filter(s => getQuality(s.key, s.value) === "poor");
+  const moderate = sensors.filter(s => getQuality(s.key, s.value) === "moderate");
+  if (poor.length > 0) return `\u26A0 ${poor.map(s => s.label).join(", ")} \u2014 ${t.quality_poor}`;
+  if (moderate.length > 0) return `${moderate.map(s => s.label).join(", ")} \u2014 ${t.quality_moderate}`;
+  return `\u2713 ${t.quality_good}`;
+}
+
+/**
+ * Generate a context-aware tip based on the worst sensor value.
+ * Used in the desktop tip bar between hero and sensor grid.
+ * Returns an object with emoji, text, and severity for the narrative tip card.
+ */
+function generateTip(
+  reading: EnvironmentalReading | null,
+  getQuality: (key: string, value: number) => string,
+  t: Translations
+): { emoji: string; text: string } {
+  if (!reading) return { emoji: "", text: "" };
+  // Check poor first
+  if (getQuality("co2_ppm", reading.co2_ppm) === "poor") return { emoji: "\u{1F4A1}", text: t.tip_ventilate };
+  if (getQuality("temperature_c", reading.temperature_c) === "poor") return { emoji: "\u{1F321}\uFE0F", text: t.tip_temperature };
+  if (getQuality("humidity_pct", reading.humidity_pct) === "poor") return { emoji: "\u{1F4A7}", text: t.tip_humidity };
+  if (getQuality("light_lux", reading.light_lux) === "poor") return { emoji: "\u2600\uFE0F", text: t.tip_light };
+  // Then moderate
+  if (getQuality("co2_ppm", reading.co2_ppm) === "moderate") return { emoji: "\u26A0\uFE0F", text: t.tip_ventilate };
+  if (getQuality("humidity_pct", reading.humidity_pct) === "moderate") return { emoji: "\u{1F4A7}", text: t.tip_humidity };
+  return { emoji: "\u2705", text: t.tip_all_good };
+}
+
+/**
+ * Determine overall tip severity based on the worst sensor reading.
+ * Used for the narrative tip card border accent.
+ */
+function getTipSeverity(
+  reading: EnvironmentalReading | null,
+  getQuality: (key: string, value: number) => "good" | "moderate" | "poor"
+): "good" | "moderate" | "poor" {
+  if (!reading) return "good";
+  const keys = ["co2_ppm", "temperature_c", "humidity_pct", "pressure_hpa", "light_lux"];
+  for (const key of keys) {
+    const val = reading[key as keyof EnvironmentalReading] as number;
+    if (val !== undefined && getQuality(key, val) === "poor") return "poor";
+  }
+  for (const key of keys) {
+    const val = reading[key as keyof EnvironmentalReading] as number;
+    if (val !== undefined && getQuality(key, val) === "moderate") return "moderate";
+  }
+  return "good";
+}
 
 /**
  * Calculate air quality score (0-100) from all sensor readings
@@ -224,6 +294,7 @@ function Sparkline({ data, dataKey, color }: { data: Record<string, unknown>[]; 
 
 export default function Dashboard() {
   const { mode, getQuality, setEnvironment } = useEnvironment();
+  const { activeStyle } = useVisualStyle();
   const { t } = useI18n();
   const hr = useHeartRate();
 
@@ -238,6 +309,28 @@ export default function Dashboard() {
   const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<"start" | "stop" | null>(null);
+  const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
+  const [refreshCountdown, setRefreshCountdown] = useState(30);
+  const [figmaTab, setFigmaTab] = useState<"measure" | "history" | "devices" | "settings">("measure");
+
+  // Figma mode carousel definitions (style 16)
+  const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Wind; gradient: string; bgImage: string }[] = [
+    { id: "sleep", label: t.env_sleep, icon: Moon, gradient: "linear-gradient(135deg, #6366F1, #818CF8)", bgImage: "/images/env_sleep.png" },
+    { id: "office", label: t.env_office, icon: Briefcase, gradient: "linear-gradient(135deg, #FDE047, #FACC15)", bgImage: "/images/env_office.png" },
+    { id: "school", label: t.env_school, icon: GraduationCap, gradient: "linear-gradient(135deg, #22C55E, #4ADE80)", bgImage: "/images/style1_warm/s1_office.png" },
+    { id: "outdoor", label: t.env_outdoor, icon: Tree, gradient: "linear-gradient(135deg, #F59E0B, #FBBF24)", bgImage: "/images/env_outdoor.png" },
+    { id: "sport", label: t.env_sport, icon: Activity, gradient: "linear-gradient(135deg, #EF4444, #F87171)", bgImage: "/images/env_sport.png" },
+    { id: "factory", label: t.env_factory, icon: Factory, gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/style7_industrial/s7_office.png" },
+    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout, gradient: "linear-gradient(135deg, #10B981, #34D399)", bgImage: "/images/style3_nature/s3_outdoor.png" },
+  ];
+
+  // Refresh countdown timer (resets every 30s)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshCountdown(prev => prev <= 1 ? 30 : prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Fetch devices on mount
   useEffect(() => {
@@ -266,7 +359,15 @@ export default function Dashboard() {
       ]);
       setCurrentReading(latest);
       setRecentReadings(recent.reverse());
-      setLastUpdate(new Date().toLocaleTimeString());
+      setLastUpdate(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        })
+      );
+      setRefreshCountdown(30);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
@@ -311,6 +412,32 @@ export default function Dashboard() {
         ? t.quality_moderate
         : t.quality_poor;
 
+  // Desktop hero insight text
+  const insightText = generateInsight(currentReading, getQuality, t);
+
+  // Desktop tip bar text and severity
+  const tip = generateTip(currentReading, getQuality, t);
+  const tipSeverity = getTipSeverity(currentReading, getQuality);
+
+  // Environment definitions shared between carousel and desktop env row
+  const environmentDefs = [
+    { id: "office" as const, img: `${activeStyle.scenePrefix}office${activeStyle.sceneSuffix}`, label: t.env_office },
+    { id: "sleep" as const, img: `${activeStyle.scenePrefix}sleep${activeStyle.sceneSuffix}`, label: t.env_sleep },
+    { id: "sport" as const, img: `${activeStyle.scenePrefix}sport${activeStyle.sceneSuffix}`, label: t.env_sport },
+    { id: "outdoor" as const, img: `${activeStyle.scenePrefix}outdoor${activeStyle.sceneSuffix}`, label: t.env_outdoor },
+  ];
+  const cubeByMode: Record<EnvironmentMode, { orientation: string; sensorLabel: string }> = {
+    office: { orientation: "0deg 180deg 0deg", sensorLabel: t.sensor_co2 },
+    sleep: { orientation: "-90deg 0deg 0deg", sensorLabel: t.sensor_light },
+    sport: { orientation: "0deg 0deg 0deg", sensorLabel: t.sensor_temperature },
+    outdoor: { orientation: "0deg -90deg 0deg", sensorLabel: t.sensor_humidity },
+    school: { orientation: "0deg 180deg 0deg", sensorLabel: t.sensor_co2 },
+    factory: { orientation: "0deg 0deg 0deg", sensorLabel: t.sensor_temperature },
+    greenhouse: { orientation: "0deg -90deg 0deg", sensorLabel: t.sensor_humidity },
+  };
+  const cubeOrientation = cubeByMode[mode].orientation;
+  const cubePrimaryLabel = cubeByMode[mode].sensorLabel;
+
   // Quality label resolver for badges
   function getQualityLabel(q: string): string {
     if (q === "good") return t.quality_good;
@@ -339,22 +466,138 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-page" data-env={mode}>
-      {/* Environment carousel — centered active card, looping */}
+      {/* Environment carousel — centered active card, looping (mobile only) */}
       <EnvironmentCarousel
-        environments={[
-          { id: "office" as const, img: "/images/env_office.png", label: t.env_office },
-          { id: "sleep" as const, img: "/images/env_sleep.png", label: t.env_sleep },
-          { id: "sport" as const, img: "/images/env_sport.png", label: t.env_sport },
-          { id: "outdoor" as const, img: "/images/env_outdoor.png", label: t.env_outdoor },
-        ]}
+        environments={environmentDefs}
         activeId={mode}
         onSelect={setEnvironment}
       />
 
+      {/* ===== DESKTOP HERO STAGE: full-width hero with background image ===== */}
+      <section className="desktop-hero-stage" style={{ backgroundImage: `url(${activeStyle.heroPrefix}${mode}${activeStyle.heroSuffix})` }}>
+        <div className="hero-bg-overlay" />
+        <div className="hero-content">
+          <div className="hero-kpi-block">
+            <div className="hero-score">{airQualityScore !== null ? `${Math.round(animatedScore)}%` : "--"}</div>
+            <div className="hero-quality" style={{ color: airQualityScore === null ? "var(--text-muted)" : airQualityScore >= 70 ? "var(--good)" : airQualityScore >= 40 ? "var(--moderate)" : "var(--poor)" }}>
+              {qualityLabel}
+            </div>
+            <p className="hero-insight">{insightText}</p>
+            <div className="hero-meta">
+              <span className={`hero-live-dot ${isMeasuring ? "" : "inactive"}`} />
+              <span>{isMeasuring ? t.measuring_active : t.measuring_inactive}</span>
+              {lastUpdate && <span>· {t.updated} {lastUpdate}</span>}
+              <span className="hero-countdown">{refreshCountdown}s</span>
+              <button
+                className="hero-action-btn"
+                onClick={() => setShowConfirmModal(isMeasuring ? "stop" : "start")}
+              >
+                {isMeasuring ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <rect x="6" y="5" width="4" height="14" rx="1.2" />
+                      <rect x="14" y="5" width="4" height="14" rx="1.2" />
+                    </svg>
+                    {t.measuring_stop}
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <polygon points="7,5 19,12 7,19" />
+                    </svg>
+                    {t.measuring_start}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+          <div className="hero-gauge">
+            <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
+          </div>
+        </div>
+        <div className="hero-bottom-bar">
+          <div className="hero-env-strip">
+            {environmentDefs.map(env => (
+              <button
+                key={env.id}
+                className={`hero-env-thumb ${mode === env.id ? "active" : ""}`}
+                data-env={env.id}
+                onClick={() => setEnvironment(env.id)}
+              >
+                <img src={env.img} alt={env.label} />
+                <span>{env.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hero-room-chips">
+            {devices.map(d => (
+              <div key={d.device_id} className="room-chip-wrapper">
+                <button
+                  className={`room-chip ${selectedDevice === d.device_id ? "active" : ""}`}
+                  onClick={() => setSelectedDevice(d.device_id)}
+                >
+                  <span className="room-chip-dot" style={{ background: d.status === "online" ? "var(--good)" : "var(--text-muted)" }} />
+                  {d.name}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Sensor cube stage below hero panel; mode switches which face turns to the front */}
+      <section className="sensor-cube-stage" data-env={mode}>
+        <div className="sensor-cube-copy">
+          <h3 className="sensor-cube-title">Sensor Cube</h3>
+          <p className="sensor-cube-text">
+            {(environmentDefs.find((env) => env.id === mode)?.label ?? mode)} - {cubePrimaryLabel}
+          </p>
+        </div>
+        <div className="sensor-cube-viewer-wrap">
+          <model-viewer
+            src="/models/cube_asset_sensor_faces.glb"
+            alt="Rotating sensor cube"
+            camera-controls
+            auto-rotate
+            auto-rotate-delay="0"
+            rotation-per-second="14deg"
+            orientation={cubeOrientation}
+            camera-orbit="35deg 74deg 2.9m"
+            min-camera-orbit="auto 35deg auto"
+            max-camera-orbit="auto 105deg auto"
+            interaction-prompt="none"
+            disable-zoom
+            shadow-intensity="1"
+            exposure="1.2"
+            environment-image="neutral"
+          ></model-viewer>
+        </div>
+      </section>
+
+      {/* Desktop narrative tip card */}
+      <section className="desktop-narrative-tip" data-severity={tipSeverity}>
+        <div className="tip-icon">{tip.emoji}</div>
+        <div className="tip-content">
+          <span className="tip-primary">{tip.text}</span>
+          {lastUpdate && <span className="tip-secondary">{t.updated} {lastUpdate}</span>}
+        </div>
+      </section>
+
       {/* Measuring status bar */}
       <section className="measuring-bar">
         <div className="measuring-status">
-          <span className={`measuring-dot ${isMeasuring ? "active" : ""}`} />
+          <div className={`measuring-cube ${isMeasuring ? "on" : "off"}`} aria-hidden="true">
+            <div className="status-cube-scene">
+              <div className="status-cube-solid">
+                <span className="status-cube-face front" />
+                <span className="status-cube-face back" />
+                <span className="status-cube-face right" />
+                <span className="status-cube-face left" />
+                <span className="status-cube-face top" />
+                <span className="status-cube-face bottom" />
+              </div>
+            </div>
+          </div>
           <span className="measuring-text">
             {isMeasuring ? t.measuring_active : t.measuring_inactive}
           </span>
@@ -365,12 +608,17 @@ export default function Dashboard() {
         >
           {isMeasuring ? (
             <>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="5" width="4" height="14" rx="1.2" />
+                <rect x="14" y="5" width="4" height="14" rx="1.2" />
+              </svg>
               {t.measuring_stop}
             </>
           ) : (
             <>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <polygon points="6,4 20,12 6,20" />
+              </svg>
               {t.measuring_start}
             </>
           )}
@@ -475,8 +723,13 @@ export default function Dashboard() {
           return (
             <article
               key={metric.key}
-              className="sensor-card"
+              className={`sensor-card ${metric.key === "co2_ppm" ? "sensor-card--featured" : ""}`}
               style={{ borderLeft: `4px solid ${borderColor}` }}
+              onClick={() => setSelectedSensor(selectedSensor === metric.key ? null : metric.key)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedSensor(selectedSensor === metric.key ? null : metric.key); } }}
+              role="button"
+              tabIndex={0}
+              aria-expanded={selectedSensor === metric.key}
             >
               <div className="sensor-card-header">
                 <div className="sensor-icon" style={{ color: borderColor }}>
@@ -496,9 +749,55 @@ export default function Dashboard() {
                   </span>
                   <span className="value-unit">{metric.unit}</span>
                 </div>
+                {(() => {
+                  const trend = getTrend(metric.key, value, recentReadings);
+                  if (trend.direction === "stable") return null;
+                  return (
+                    <span className={`sensor-trend trend-${trend.direction}`}>
+                      {trend.direction === "up" ? "\u2191" : "\u2193"} {trend.delta}
+                      <span className="trend-label">
+                        {trend.direction === "up" ? t.trend_rising : t.trend_falling}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
 
               <Sparkline data={sparkData} dataKey="value" color={metric.color} />
+
+              {metric.key === "co2_ppm" && recentReadings.length > 1 && (
+                <div className="sensor-featured-detail">
+                  <span className="featured-context">
+                    {recentReadings[0]?.co2_ppm} → {currentReading?.co2_ppm} ppm
+                  </span>
+                </div>
+              )}
+
+              {selectedSensor === metric.key && (
+                <div className="sensor-popover" onClick={(e) => e.stopPropagation()}>
+                  <div className="popover-header">
+                    <span className="popover-title">{translatedLabel}</span>
+                    <button className="popover-close" onClick={() => setSelectedSensor(null)}>&times;</button>
+                  </div>
+                  <div className="popover-value">{value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small></div>
+                  <div className="popover-stats">
+                    {(() => {
+                      const values = recentReadings.map(r => metric.key === "noise_adc" ? r.sound_level_adc : (r[metric.key as keyof EnvironmentalReading] as number)).filter(v => v !== undefined);
+                      if (values.length === 0) return null;
+                      const min = Math.min(...values);
+                      const max = Math.max(...values);
+                      const avg = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+                      return (
+                        <>
+                          <div className="popover-stat"><span>Min</span><strong>{min}</strong></div>
+                          <div className="popover-stat"><span>Max</span><strong>{max}</strong></div>
+                          <div className="popover-stat"><span>Avg</span><strong>{avg}</strong></div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
             </article>
           );
         })}
@@ -580,6 +879,239 @@ export default function Dashboard() {
           </p>
         )}
       </section>
+
+      {/* ===== FIGMA DESKTOP LAYOUT (Style 16) ===== */}
+      {activeStyle.id === 16 && (
+        <div className="figma-desktop">
+          {/* Mode Carousel — 7 colorful cards */}
+          <section className="figma-carousel">
+            <button
+              className="figma-arrow figma-arrow-left"
+              onClick={() => {
+                const modes = figmaModes.map(m => m.id);
+                const idx = modes.indexOf(mode);
+                const prev = (idx - 1 + modes.length) % modes.length;
+                setEnvironment(modes[prev]);
+              }}
+              aria-label="Previous"
+            >
+              ‹
+            </button>
+
+            <div className="figma-carousel-track">
+              {figmaModes.map((m, i) => {
+                const activeIdx = figmaModes.findIndex(fm => fm.id === mode);
+                const len = figmaModes.length;
+                let diff = i - activeIdx;
+                if (diff > len / 2) diff -= len;
+                if (diff < -len / 2) diff += len;
+                const absDiff = Math.abs(diff);
+                const isActive = diff === 0;
+
+                return (
+                  <button
+                    key={m.id}
+                    className={`figma-mode-card ${isActive ? "active" : ""}`}
+                    data-env={m.id}
+                    onClick={() => setEnvironment(m.id)}
+                    style={{
+                      transform: `translateX(${diff * 42}%) scale(${isActive ? 1.1 : 1 - absDiff * 0.05})`,
+                      opacity: absDiff === 0 ? 1 : absDiff === 1 ? 0.85 : absDiff === 2 ? 0.6 : absDiff === 3 ? 0.35 : 0.15,
+                      zIndex: 10 - absDiff,
+                      filter: isActive ? "none" : `brightness(${1 - absDiff * 0.1})`,
+                    }}
+                  >
+                    <img src={m.bgImage} alt="" className="figma-mode-bg" />
+                    <div className="figma-mode-overlay" style={{ background: m.gradient }} />
+                    <m.icon size={isActive ? 28 : 18} className="figma-mode-icon" />
+                    <span className="figma-mode-label">{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              className="figma-arrow figma-arrow-right"
+              onClick={() => {
+                const modes = figmaModes.map(m => m.id);
+                const idx = modes.indexOf(mode);
+                const next = (idx + 1) % modes.length;
+                setEnvironment(modes[next]);
+              }}
+              aria-label="Next"
+            >
+              ›
+            </button>
+          </section>
+
+          {/* Mode indicator dots */}
+          <div className="figma-dots">
+            {figmaModes.map((m) => (
+              <span
+                key={m.id}
+                className={`figma-dot ${mode === m.id ? "active" : ""}`}
+                onClick={() => setEnvironment(m.id)}
+              />
+            ))}
+          </div>
+
+          {/* Tab Navigation */}
+          <nav className="figma-tabs">
+            <button className={`figma-tab ${figmaTab === "measure" ? "active" : ""}`} onClick={() => setFigmaTab("measure")}>{t.nav_dashboard}</button>
+            <button className={`figma-tab ${figmaTab === "history" ? "active" : ""}`} onClick={() => setFigmaTab("history")}>{t.nav_history}</button>
+            <button className={`figma-tab ${figmaTab === "devices" ? "active" : ""}`} onClick={() => setFigmaTab("devices")}>{t.nav_devices}</button>
+            <button className={`figma-tab ${figmaTab === "settings" ? "active" : ""}`} onClick={() => setFigmaTab("settings")}>{t.nav_settings}</button>
+          </nav>
+
+          {/* Tab Content */}
+          <section className="figma-content">
+            {figmaTab === "measure" && (
+              <>
+                {/* Measuring status */}
+                <div className="figma-measure-bar">
+                  <div className="figma-measure-status">
+                    <div className={`figma-measure-cube ${isMeasuring ? "on" : "off"}`} aria-hidden="true">
+                      <div className="status-cube-scene">
+                        <div className="status-cube-solid">
+                          <span className="status-cube-face front" />
+                          <span className="status-cube-face back" />
+                          <span className="status-cube-face right" />
+                          <span className="status-cube-face left" />
+                          <span className="status-cube-face top" />
+                          <span className="status-cube-face bottom" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="figma-measure-copy">
+                      <h2>{isMeasuring ? t.measuring_active : t.measuring_inactive}</h2>
+                      <span className="figma-measure-timestamp">{t.updated} {lastUpdate}</span>
+                    </div>
+                  </div>
+                  <button
+                    className={`figma-measure-btn ${isMeasuring ? "stop" : "start"}`}
+                    onClick={() => setShowConfirmModal(isMeasuring ? "stop" : "start")}
+                  >
+                    {isMeasuring ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="5" width="4" height="14" rx="1.2" />
+                          <rect x="14" y="5" width="4" height="14" rx="1.2" />
+                        </svg>
+                        {t.measuring_stop}
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="7,5 19,12 7,19" />
+                        </svg>
+                        {t.measuring_start}
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Device list */}
+                <div className="figma-devices">
+                  {devices.map((d) => (
+                    <div key={d.device_id} className="figma-device-group">
+                      <div className="figma-device-row">
+                        <input
+                          type="checkbox"
+                          checked={selectedDevices.has(d.device_id)}
+                          onChange={() => {
+                            setSelectedDevices((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(d.device_id)) next.delete(d.device_id);
+                              else next.add(d.device_id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="figma-device-name">{d.name}</span>
+                        <span className={`figma-device-status ${d.status === "online" ? "online" : ""}`}>
+                          {d.status === "online" ? t.status_online : t.status_offline}
+                        </span>
+                        <button
+                          className="figma-device-expand"
+                          onClick={() => setExpandedDevice(expandedDevice === d.device_id ? null : d.device_id)}
+                        >
+                          <ChevronDown size={16} className={`figma-chevron ${expandedDevice === d.device_id ? "open" : ""}`} />
+                        </button>
+                      </div>
+                      {expandedDevice === d.device_id && (
+                        <div className="figma-device-sensors">
+                          {[
+                            { hw: "MH-Z19B (CO2)", color: "#22C55E" },
+                            { hw: "BME280 (Temp)", color: "#3B82F6" },
+                            { hw: "BME280 (Humidity)", color: "#06B6D4" },
+                            { hw: "BME280 (Pressure)", color: "#8B5CF6" },
+                            { hw: "BH1750 (Light)", color: "#F59E0B" },
+                            { hw: "MAX9814 (Noise)", color: "#EF4444" },
+                          ].map(s => (
+                            <div key={s.hw} className="figma-sensor-row">
+                              <span className="figma-sensor-dot" style={{ background: s.color }} />
+                              <span>{s.hw}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Air quality gauge */}
+                <div className="figma-gauge-section">
+                  <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
+                  <div className="figma-gauge-info">
+                    <h2>{t.air_quality}</h2>
+                    <p>{t.air_quality_based_on}</p>
+                  </div>
+                </div>
+
+                {/* Sensor cards */}
+                <div className="figma-sensor-grid">
+                  {metrics.map((metric) => {
+                    const value = getSensorValue(metric.key);
+                    const quality = value !== null ? getQuality(metric.key, value) : "moderate";
+                    const IconComponent = iconMap[metric.icon] ?? Wind;
+                    const borderColor = sensorColors[metric.key] ?? "#9C9590";
+                    const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
+                    return (
+                      <div key={metric.key} className="figma-sensor-card" style={{ borderTopColor: borderColor }}>
+                        <div className="figma-sensor-icon" style={{ color: borderColor }}><IconComponent size={18} /></div>
+                        <span className="figma-sensor-label">{translatedLabel}</span>
+                        <span className="figma-sensor-value">
+                          {value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small>
+                        </span>
+                        <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {figmaTab === "history" && (
+              <div className="figma-placeholder">
+                <p>{t.nav_history}</p>
+              </div>
+            )}
+
+            {figmaTab === "devices" && (
+              <div className="figma-placeholder">
+                <p>{t.nav_devices}</p>
+              </div>
+            )}
+
+            {figmaTab === "settings" && (
+              <div className="figma-placeholder">
+                <p>{t.nav_settings}</p>
+              </div>
+            )}
+          </section>
+
+        </div>
+      )}
 
       {/* Confirmation modal */}
       {showConfirmModal && (

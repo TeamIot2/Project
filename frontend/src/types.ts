@@ -1,7 +1,7 @@
 // Frontend type definitions for IoT Environmental Monitoring
 
 export type DeviceStatus = "online" | "offline" | "error";
-export type EnvironmentMode = "sleep" | "office" | "sport" | "outdoor";
+export type EnvironmentMode = "sleep" | "office" | "sport" | "outdoor" | "school" | "factory" | "greenhouse";
 export type UserRole = "admin" | "operator" | "viewer";
 
 export interface EnvironmentalReading {

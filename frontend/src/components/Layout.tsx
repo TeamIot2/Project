@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useVisualStyle } from "../contexts/StyleContext";
 import { Home, BarChart2, Cpu, Settings, Moon, Sun, Briefcase, Activity, LogOut, ChevronDown, Globe, Tree } from "./Icons";
 import type { EnvironmentMode } from "../types";
 import type { Translations } from "../i18n/translations";
@@ -35,9 +36,11 @@ export default function Layout() {
   const { mode, setEnvironment } = useEnvironment();
   const { locale, t, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
+  const { activeStyle, setStyle, allStyles } = useVisualStyle();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const isFigmaStyle = activeStyle.id === 16;
   const navItems = getNavItems(t);
   const envModes = getEnvModes(t);
 
@@ -73,9 +76,19 @@ export default function Layout() {
             >
               <item.icon size={20} />
               <span>{item.label}</span>
+              {item.to === "/devices" && (
+                <span className="nav-badge">99</span>
+              )}
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar-widget">
+          <div className="sidebar-widget-env" style={{ borderLeftColor: `var(--env-${mode})` }}>
+            <span className="sidebar-widget-mode">{envModes.find(e => e.id === mode)?.label}</span>
+            <span className="sidebar-widget-status">&#9679; Active</span>
+          </div>
+        </div>
 
         <div className="sidebar-footer">
           <div className="sidebar-user">
@@ -94,6 +107,7 @@ export default function Layout() {
       <div className="main-wrapper">
         {/* Header */}
         <header className="app-header">
+          {/* Environment pills — visible on mobile only */}
           <div className="env-selector">
             {envModes.map((env) => (
               <button
@@ -103,6 +117,36 @@ export default function Layout() {
               >
                 <env.icon size={14} />
                 <span>{env.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Brand — visible only for Figma style */}
+          {isFigmaStyle && (
+            <div className="figma-brand">
+              <div className="figma-brand-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12 L6 8 L10 16 L14 6 L18 14 L22 10" />
+                </svg>
+              </div>
+              <div className="figma-brand-text">
+                <span className="figma-brand-name">Team2App</span>
+                <span className="figma-brand-subtitle">Internet of Things</span>
+              </div>
+            </div>
+          )}
+
+          {/* Style switcher — visible on desktop only */}
+          <div className="style-switcher">
+            {allStyles.map(s => (
+              <button
+                key={s.id}
+                className={`style-btn ${activeStyle.id === s.id ? "active" : ""}`}
+                style={{ "--btn-accent": s.accent } as React.CSSProperties}
+                onClick={() => setStyle(s.id)}
+                title={s.name}
+              >
+                {s.id}
               </button>
             ))}
           </div>
@@ -135,7 +179,14 @@ export default function Layout() {
               aria-haspopup="menu"
             >
               <div className="user-avatar-sm">
-                {user?.name?.charAt(0).toUpperCase() ?? "U"}
+                {isFigmaStyle ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                ) : (
+                  user?.name?.charAt(0).toUpperCase() ?? "U"
+                )}
               </div>
               <span className="user-menu-name">{user?.name ?? "User"}</span>
               <ChevronDown size={16} />

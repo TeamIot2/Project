@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cube Asset Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-1: #08111f;
+        --bg-2: #13284d;
+        --panel: rgba(11, 22, 40, 0.72);
+        --border: rgba(180, 210, 255, 0.2);
+        --text: #e9f2ff;
+        --muted: #9db6dc;
+        --accent: #7bc2ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(96, 161, 255, 0.24), transparent 36%),
+          linear-gradient(160deg, var(--bg-1), var(--bg-2));
+        display: grid;
+        place-items: center;
+      }
+
+      .shell {
+        width: min(92vw, 1100px);
+        height: min(88vh, 760px);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        backdrop-filter: blur(18px);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 24px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .title {
+        font-size: 14px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .headline {
+        margin-top: 8px;
+        font-size: clamp(28px, 4vw, 44px);
+        font-weight: 700;
+      }
+
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .badge {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(123, 194, 255, 0.16);
+        color: var(--accent);
+        border: 1px solid rgba(123, 194, 255, 0.25);
+      }
+
+      model-viewer {
+        width: 100%;
+        height: 100%;
+        background:
+          radial-gradient(circle at center, rgba(255, 255, 255, 0.06), transparent 44%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+        --poster-color: transparent;
+      }
+    </style>
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  </head>
+  <body>
+    <section class="shell">
+      <header class="topbar">
+        <div>
+          <div class="title">3D Asset Preview</div>
+          <div class="headline">Cube Asset</div>
+        </div>
+        <div class="meta">
+          <span class="badge">Auto Rotate</span>
+          <span>Drag to inspect</span>
+        </div>
+      </header>
+
+      <model-viewer
+        src="./models/cube_asset_simple.glb"
+        alt="3D cube asset"
+        camera-controls
+        auto-rotate
+        rotation-per-second="22deg"
+        shadow-intensity="1"
+        camera-orbit="40deg 72deg 2.8m"
+        min-camera-orbit="auto 35deg auto"
+        max-camera-orbit="auto 110deg auto"
+        exposure="1.25"
+        environment-image="neutral"
+      ></model-viewer>
+    </section>
+  </body>
+</html>

@@ -69,7 +69,7 @@ export interface DeviceInfo {
 // Environment Types
 // ============================================================
 
-export type EnvironmentMode = "sleep" | "office" | "sport" | "outdoor";
+export type EnvironmentMode = "sleep" | "office" | "sport" | "outdoor" | "school" | "factory" | "greenhouse";
 
 export interface ThresholdRange {
   good: [number, number]; // [min, max] — values in this range are "good"

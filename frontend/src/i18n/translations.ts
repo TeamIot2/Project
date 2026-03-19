@@ -18,6 +18,12 @@ export interface Translations {
   env_sport_desc: string;
   env_outdoor: string;
   env_outdoor_desc: string;
+  env_school: string;
+  env_school_desc: string;
+  env_factory: string;
+  env_factory_desc: string;
+  env_greenhouse: string;
+  env_greenhouse_desc: string;
 
   // Dashboard
   air_quality: string;
@@ -98,6 +104,18 @@ export interface Translations {
   confirm_yes: string;
   confirm_cancel: string;
 
+  // Tips
+  tip_ventilate: string;
+  tip_temperature: string;
+  tip_humidity: string;
+  tip_light: string;
+  tip_all_good: string;
+
+  // Trends
+  trend_rising: string;
+  trend_falling: string;
+  trend_stable: string;
+
   // Common
   loading: string;
   error: string;
@@ -105,7 +123,7 @@ export interface Translations {
 }
 
 const cs: Translations = {
-  nav_dashboard: "Přehled",
+  nav_dashboard: "Měření",
   nav_history: "Historie",
   nav_devices: "Zařízení",
   nav_settings: "Nastavení",
@@ -118,14 +136,20 @@ const cs: Translations = {
   env_sport_desc: "Fyzická aktivita a manuální práce",
   env_outdoor: "Město / Příroda",
   env_outdoor_desc: "Monitorování venkovního prostředí",
+  env_school: "Škola",
+  env_school_desc: "Školní prostředí",
+  env_factory: "Továrna",
+  env_factory_desc: "Průmyslové prostředí",
+  env_greenhouse: "Skleník",
+  env_greenhouse_desc: "Skleníkové prostředí",
 
-  air_quality: "Celková kvalita",
-  air_quality_based_on: "Na základě 6 aktivních senzorů",
+  air_quality: "Celkové skóre",
+  air_quality_based_on: "Počet senzorů: 6",
   quality_good: "Dobrá",
   quality_moderate: "Střední",
   quality_poor: "Špatná",
   quality_loading: "Načítání",
-  updated: "Aktualizováno",
+  updated: "Aktualizace",
   sensor_co2: "CO2",
   sensor_temperature: "Teplota",
   sensor_humidity: "Vlhkost",
@@ -191,13 +215,23 @@ const cs: Translations = {
   confirm_yes: "Ano",
   confirm_cancel: "Zrušit",
 
+  tip_ventilate: "Doporučujeme vyvětrat místnost",
+  tip_temperature: "Teplota je mimo optimální rozsah",
+  tip_humidity: "Vlhkost vyžaduje pozornost",
+  tip_light: "Osvětlení není ideální",
+  tip_all_good: "Všechny hodnoty v normě",
+
+  trend_rising: "Roste",
+  trend_falling: "Klesá",
+  trend_stable: "Stabilní",
+
   loading: "Načítání...",
   error: "Chyba",
   loading_dashboard: "Načítání přehledu...",
 };
 
 const en: Translations = {
-  nav_dashboard: "Dashboard",
+  nav_dashboard: "Measurement",
   nav_history: "History",
   nav_devices: "Devices",
   nav_settings: "Settings",
@@ -210,9 +244,15 @@ const en: Translations = {
   env_sport_desc: "Physical activity and manual labor",
   env_outdoor: "Town / Nature",
   env_outdoor_desc: "Outdoor environment monitoring",
+  env_school: "School",
+  env_school_desc: "School environment",
+  env_factory: "Factory",
+  env_factory_desc: "Industrial environment",
+  env_greenhouse: "Greenhouse",
+  env_greenhouse_desc: "Greenhouse environment",
 
-  air_quality: "Overall Quality",
-  air_quality_based_on: "Based on 6 active sensors",
+  air_quality: "Overall Score",
+  air_quality_based_on: "Sensor count: 6",
   quality_good: "Good",
   quality_moderate: "Moderate",
   quality_poor: "Poor",
@@ -282,6 +322,16 @@ const en: Translations = {
   confirm_start: "Start collecting data with all selected devices?",
   confirm_yes: "Yes",
   confirm_cancel: "Cancel",
+
+  tip_ventilate: "Consider ventilating the room",
+  tip_temperature: "Temperature is outside optimal range",
+  tip_humidity: "Humidity needs attention",
+  tip_light: "Lighting is not ideal",
+  tip_all_good: "All values within normal range",
+
+  trend_rising: "Rising",
+  trend_falling: "Falling",
+  trend_stable: "Stable",
 
   loading: "Loading...",
   error: "Error",
