@@ -265,3 +265,19 @@ export function Tree({ size = 24, className = "" }: IconProps) {
     </svg>
   );
 }
+
+/**
+ * CO2 molecule icon — three connected rings O=C=O.
+ */
+export function Co2Molecule({ size = 24, className = "" }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      {/* Left O atom */}
+      <circle cx="5" cy="12" r="3.8" />
+      {/* Central C atom — slightly larger */}
+      <circle cx="12" cy="12" r="4.2" />
+      {/* Right O atom */}
+      <circle cx="19" cy="12" r="3.8" />
+    </svg>
+  );
+}

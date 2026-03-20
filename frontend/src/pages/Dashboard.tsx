@@ -5,6 +5,10 @@ import {
   LineChart,
   Line,
   ResponsiveContainer,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
 } from "recharts";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useVisualStyle } from "../contexts/StyleContext";
@@ -31,6 +35,8 @@ import {
   Tree,
   Factory,
   Sprout,
+  Cpu,
+  Co2Molecule,
 } from "../components/Icons";
 import type { EnvironmentMode } from "../types";
 
@@ -42,10 +48,12 @@ function EnvironmentCarousel({
   environments,
   activeId,
   onSelect,
+  overlayStyle = false,
 }: {
-  environments: { id: EnvironmentMode; img: string; label: string }[];
+  environments: { id: EnvironmentMode; img: string; label: string; icon?: typeof Wind }[];
   activeId: EnvironmentMode;
   onSelect: (id: EnvironmentMode) => void;
+  overlayStyle?: boolean;
 }) {
   const activeIndex = environments.findIndex((e) => e.id === activeId);
 
@@ -61,17 +69,49 @@ function EnvironmentCarousel({
         ‹
       </button>
       <div className="env-carousel-track">
-        {environments.map((env) => {
-          const isActive = env.id === activeId;
+        {environments.map((env, i) => {
+          const len = environments.length;
+          let diff = i - activeIndex;
+          if (diff > len / 2) diff -= len;
+          if (diff < -len / 2) diff += len;
+          const absDiff = Math.abs(diff);
+          const isActive = diff === 0;
+          const Icon = env.icon;
+
           return (
             <button
               key={env.id}
               className={`env-card ${isActive ? "active" : ""}`}
               data-env={env.id}
               onClick={() => onSelect(env.id)}
+              style={{
+                transform: `translateX(${diff * (overlayStyle ? 84 : 75)}%) scale(1)`,
+                opacity: overlayStyle
+                  ? absDiff === 0
+                    ? 1
+                    : absDiff === 1
+                      ? 0.72
+                      : 0
+                  : absDiff === 0
+                    ? 1
+                    : absDiff === 1
+                      ? 0.65
+                      : 0.2,
+                zIndex: 10 - absDiff,
+              }}
             >
               <img src={env.img} alt={env.label} className="env-card-img" />
-              <span className="env-card-label">{env.label}</span>
+              {overlayStyle && Icon ? (
+                <>
+                  <div className="env-card-overlay" />
+                  <div className="env-card-copy">
+                    <Icon size={isActive ? 24 : 20} className="env-card-icon" />
+                    <span className="env-card-label">{env.label}</span>
+                  </div>
+                </>
+              ) : (
+                <span className="env-card-label">{env.label}</span>
+              )}
             </button>
           );
         })}
@@ -109,10 +149,10 @@ const sensorLabelKeys: Record<string, keyof Translations> = {
 
 // Sensor metric configurations
 const metrics: MetricConfig[] = [
-  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "var(--chart-co2)", icon: "wind", decimals: 0, chartDomain: [300, 1500] },
+  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "var(--chart-co2)", icon: "co2molecule", decimals: 0, chartDomain: [300, 1500] },
   { key: "temperature_c", label: "Temperature", unit: "°C", color: "var(--chart-temp)", icon: "thermometer", decimals: 1, chartDomain: [15, 35] },
   { key: "humidity_pct", label: "Humidity", unit: "%", color: "var(--chart-humidity)", icon: "droplets", decimals: 1, chartDomain: [20, 80] },
-  { key: "pressure_hpa", label: "Pressure", unit: "hPa", color: "var(--chart-pressure)", icon: "gauge", decimals: 0, chartDomain: [960, 1060] },
+  { key: "pressure_hpa", label: "Pressure", unit: "hPa", color: "var(--chart-pressure)", icon: "wind", decimals: 0, chartDomain: [960, 1060] },
   { key: "light_lux", label: "Light", unit: "lux", color: "var(--chart-light)", icon: "sun", decimals: 0, chartDomain: [0, 1000] },
   { key: "noise_adc", label: "Noise", unit: "ADC", color: "var(--chart-noise)", icon: "volume", decimals: 0, chartDomain: [0, 1024] },
 ];
@@ -122,10 +162,10 @@ const iconMap: Record<string, typeof Wind> = {
   wind: Wind,
   thermometer: Thermometer,
   droplets: Droplets,
-  gauge: Activity,
   sun: Sun,
   volume: Volume2,
   heart: Heart,
+  co2molecule: Co2Molecule,
 };
 
 /**
@@ -244,7 +284,11 @@ function AirQualityGauge({ score, qualityLabel }: { score: number | null; qualit
   const circumference = 2 * Math.PI * radius;
   const displayScore = score ?? 0;
   const progress = (displayScore / 100) * circumference;
-  const color = score === null ? "var(--text-muted)" : score >= 70 ? "var(--good)" : score >= 40 ? "var(--moderate)" : "var(--poor)";
+  const color = score === null ? "#94A3B8"
+    : score >= 80 ? "#22C55E"   // green
+    : score >= 60 ? "#FACC15"   // yellow
+    : score >= 40 ? "#F97316"   // orange
+    : "#EF4444";                // red
 
   return (
     <div className="gauge-container">
@@ -312,17 +356,74 @@ export default function Dashboard() {
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState(30);
   const [figmaTab, setFigmaTab] = useState<"measure" | "history" | "devices" | "settings">("measure");
+  const [devicesExpanded, setDevicesExpanded] = useState(true);
+
+  const FIGMA_ACTIVE_CARD_WIDTH = 356;
+  const FIGMA_SIDE_CARD_WIDTH = 228;
+
+  function getFigmaCardScale(absDiff: number): number {
+    if (absDiff === 0) return 1;
+    if (absDiff === 1) return 1;
+    if (absDiff === 2) return 0.92;
+    return 0.84;
+  }
+
+  function getFigmaCardWidth(absDiff: number): number {
+    return (absDiff === 0 ? FIGMA_ACTIVE_CARD_WIDTH : FIGMA_SIDE_CARD_WIDTH) * getFigmaCardScale(absDiff);
+  }
+
+  // Keep the desktop carousel evenly stacked: each deeper card reveals 25% of its width.
+  function getFigmaCardOffset(diff: number): number {
+    const sign = diff < 0 ? -1 : 1;
+    const absDiff = Math.abs(diff);
+    if (absDiff === 0) return 0;
+
+    let offset = FIGMA_ACTIVE_CARD_WIDTH / 2 - getFigmaCardWidth(1) / 4;
+    if (absDiff === 1) return sign * offset;
+
+    let previousWidth = getFigmaCardWidth(1);
+    for (let depth = 2; depth <= absDiff; depth += 1) {
+      const currentWidth = getFigmaCardWidth(depth);
+      offset += previousWidth / 2 - currentWidth / 4;
+      previousWidth = currentWidth;
+    }
+
+    return sign * offset;
+  }
 
   // Figma mode carousel definitions (style 16)
   const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Wind; gradient: string; bgImage: string }[] = [
-    { id: "sleep", label: t.env_sleep, icon: Moon, gradient: "linear-gradient(135deg, #6366F1, #818CF8)", bgImage: "/images/env_sleep.png" },
-    { id: "office", label: t.env_office, icon: Briefcase, gradient: "linear-gradient(135deg, #FDE047, #FACC15)", bgImage: "/images/env_office.png" },
-    { id: "school", label: t.env_school, icon: GraduationCap, gradient: "linear-gradient(135deg, #22C55E, #4ADE80)", bgImage: "/images/style1_warm/s1_office.png" },
-    { id: "outdoor", label: t.env_outdoor, icon: Tree, gradient: "linear-gradient(135deg, #F59E0B, #FBBF24)", bgImage: "/images/env_outdoor.png" },
-    { id: "sport", label: t.env_sport, icon: Activity, gradient: "linear-gradient(135deg, #EF4444, #F87171)", bgImage: "/images/env_sport.png" },
-    { id: "factory", label: t.env_factory, icon: Factory, gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/style7_industrial/s7_office.png" },
-    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout, gradient: "linear-gradient(135deg, #10B981, #34D399)", bgImage: "/images/style3_nature/s3_outdoor.png" },
+    { id: "sleep",      label: "Sleep",       icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
+    { id: "office",     label: "Office",      icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
+    { id: "school",     label: "School",      icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
+    { id: "outdoor",    label: "Outside",     icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
+    { id: "sport",      label: "Gym",         icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
+    { id: "factory",    label: "Factory",     icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
+    { id: "greenhouse", label: "Greenhouse",  icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
+
+  // Accent color for the active mode — drives tab/content border color
+  const modeAccentColor: Record<string, string> = {
+    sleep:      "#A78BFA",
+    office:     "#38BDF8",
+    school:     "#FACC15",
+    outdoor:    "#2D5040",
+    sport:      "#F97316",
+    factory:    "#9CA3AF",
+    greenhouse: "#4ADE80",
+  };
+  const accentColor = modeAccentColor[mode] ?? "#FDE68A";
+
+  // Live clock — updates every second
+  const [liveClock, setLiveClock] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+  );
+  useEffect(() => {
+    const clock = setInterval(() => {
+      setLiveClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+    }, 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   // Refresh countdown timer (resets every 30s)
   useEffect(() => {
@@ -420,12 +521,40 @@ export default function Dashboard() {
   const tipSeverity = getTipSeverity(currentReading, getQuality);
 
   // Environment definitions shared between carousel and desktop env row
+  const isStyle16 = activeStyle.id === 16;
   const environmentDefs = [
-    { id: "office" as const, img: `${activeStyle.scenePrefix}office${activeStyle.sceneSuffix}`, label: t.env_office },
-    { id: "sleep" as const, img: `${activeStyle.scenePrefix}sleep${activeStyle.sceneSuffix}`, label: t.env_sleep },
-    { id: "sport" as const, img: `${activeStyle.scenePrefix}sport${activeStyle.sceneSuffix}`, label: t.env_sport },
-    { id: "outdoor" as const, img: `${activeStyle.scenePrefix}outdoor${activeStyle.sceneSuffix}`, label: t.env_outdoor },
+    {
+      id: "office" as const,
+      img: `${activeStyle.scenePrefix}office${activeStyle.sceneSuffix}`,
+      label: t.env_office,
+      icon: Briefcase,
+    },
+    {
+      id: "sleep" as const,
+      img: `${activeStyle.scenePrefix}sleep${activeStyle.sceneSuffix}`,
+      label: t.env_sleep,
+      icon: Moon,
+    },
+    {
+      id: "sport" as const,
+      img: `${activeStyle.scenePrefix}sport${activeStyle.sceneSuffix}`,
+      label: t.env_sport,
+      icon: Activity,
+    },
+    {
+      id: "outdoor" as const,
+      img: `${activeStyle.scenePrefix}outdoor${activeStyle.sceneSuffix}`,
+      label: t.env_outdoor,
+      icon: Tree,
+    },
   ];
+  const figmaEnvironmentDefs = figmaModes.map(({ id, label, icon, bgImage }) => ({
+    id,
+    label,
+    icon,
+    img: bgImage,
+  }));
+  const activeEnvironmentDefs = isStyle16 ? figmaEnvironmentDefs : environmentDefs;
   const cubeByMode: Record<EnvironmentMode, { orientation: string; sensorLabel: string }> = {
     office: { orientation: "0deg 180deg 0deg", sensorLabel: t.sensor_co2 },
     sleep: { orientation: "-90deg 0deg 0deg", sensorLabel: t.sensor_light },
@@ -444,6 +573,67 @@ export default function Dashboard() {
     if (q === "moderate") return t.quality_moderate;
     return t.quality_poor;
   }
+
+  const historyPreviewData = recentReadings.length > 0
+    ? recentReadings.slice(-6).map((reading, index) => ({
+        label: `${index + 1}`,
+        co2: Math.round(reading.co2_ppm),
+        temp: Number(reading.temperature_c.toFixed(1)),
+        humidity: Math.round(reading.humidity_pct),
+      }))
+    : [
+        { label: "1", co2: 540, temp: 21.3, humidity: 46 },
+        { label: "2", co2: 575, temp: 21.7, humidity: 47 },
+        { label: "3", co2: 598, temp: 22.0, humidity: 48 },
+        { label: "4", co2: 562, temp: 21.8, humidity: 47 },
+        { label: "5", co2: 524, temp: 21.5, humidity: 46 },
+        { label: "6", co2: 508, temp: 21.2, humidity: 45 },
+      ];
+
+  const historySummary = [
+    {
+      label: "7 day avg",
+      value: `${Math.round(historyPreviewData.reduce((sum, item) => sum + item.co2, 0) / historyPreviewData.length)} ppm`,
+      tone: "good",
+    },
+    {
+      label: "Peak period",
+      value: "14:00 - 16:00",
+      tone: "moderate",
+    },
+    {
+      label: "Most stable room",
+      value: "Bedroom",
+      tone: "good",
+    },
+  ];
+
+  const devicePreviewCards = (devices.length > 0 ? devices : [
+    { device_id: "demo-1", name: "Living Room", status: "online", location: "Ground floor", battery_v: 3.9, last_seen: new Date().toISOString() },
+    { device_id: "demo-2", name: "Office", status: "online", location: "2nd floor", battery_v: 3.7, last_seen: new Date(Date.now() - 1000 * 60 * 8).toISOString() },
+    { device_id: "demo-3", name: "Bedroom", status: "offline", location: "1st floor", battery_v: 3.4, last_seen: new Date(Date.now() - 1000 * 60 * 48).toISOString() },
+  ]).slice(0, 3).map((device, index) => ({
+    ...device,
+    sync: index === 0 ? "Auto sync every 30 s" : index === 1 ? "Battery saver mode" : "Reconnect scheduled",
+    sensors: index === 0
+      ? ["CO2", "Temperature", "Humidity", "Light"]
+      : index === 1
+        ? ["CO2", "Pressure", "Noise"]
+        : ["Temperature", "Humidity"],
+  }));
+
+  const settingsPreview = [
+    { label: "Push alerts", value: "Enabled", hint: "High CO2 and offline device warnings" },
+    { label: "Weekly summary", value: "Monday 08:00", hint: "Email digest with trends and anomalies" },
+    { label: "Shared access", value: "2 members", hint: "Office manager and family viewer" },
+    { label: "Privacy mode", value: "Balanced", hint: "Sensor data retained for 30 days" },
+  ];
+
+  const automationPreview = [
+    { name: "Night comfort mode", detail: "Reduce brightness after 22:00 and watch noise spikes", state: "Active" },
+    { name: "Ventilation reminder", detail: "Notify when CO2 stays above 900 ppm for 10 min", state: "Pending" },
+    { name: "Office arrival preset", detail: "Switch to Office scene at first device wake-up", state: "Active" },
+  ];
 
   if (loading && !currentReading) {
     return (
@@ -468,9 +658,10 @@ export default function Dashboard() {
     <div className="dashboard-page" data-env={mode}>
       {/* Environment carousel — centered active card, looping (mobile only) */}
       <EnvironmentCarousel
-        environments={environmentDefs}
+        environments={activeEnvironmentDefs}
         activeId={mode}
         onSelect={setEnvironment}
+        overlayStyle={isStyle16}
       />
 
       {/* ===== DESKTOP HERO STAGE: full-width hero with background image ===== */}
@@ -517,7 +708,7 @@ export default function Dashboard() {
         </div>
         <div className="hero-bottom-bar">
           <div className="hero-env-strip">
-            {environmentDefs.map(env => (
+            {activeEnvironmentDefs.map(env => (
               <button
                 key={env.id}
                 className={`hero-env-thumb ${mode === env.id ? "active" : ""}`}
@@ -550,7 +741,7 @@ export default function Dashboard() {
         <div className="sensor-cube-copy">
           <h3 className="sensor-cube-title">Sensor Cube</h3>
           <p className="sensor-cube-text">
-            {(environmentDefs.find((env) => env.id === mode)?.label ?? mode)} - {cubePrimaryLabel}
+            {(activeEnvironmentDefs.find((env) => env.id === mode)?.label ?? mode)} - {cubePrimaryLabel}
           </p>
         </div>
         <div className="sensor-cube-viewer-wrap">
@@ -701,12 +892,10 @@ export default function Dashboard() {
           <p className="text-secondary">
             {t.air_quality_based_on}
           </p>
-          {lastUpdate && (
-            <p className="last-update">
-              <Clock size={14} />
-              <span>{t.updated} {lastUpdate}</span>
-            </p>
-          )}
+          <p className="last-update">
+            <Clock size={14} />
+            <span>{t.updated} {liveClock}</span>
+          </p>
         </div>
       </section>
 
@@ -882,7 +1071,7 @@ export default function Dashboard() {
 
       {/* ===== FIGMA DESKTOP LAYOUT (Style 16) ===== */}
       {activeStyle.id === 16 && (
-        <div className="figma-desktop">
+        <div className="figma-desktop" style={{ "--figma-accent": accentColor } as React.CSSProperties}>
           {/* Mode Carousel — 7 colorful cards */}
           <section className="figma-carousel">
             <button
@@ -907,6 +1096,8 @@ export default function Dashboard() {
                 if (diff < -len / 2) diff += len;
                 const absDiff = Math.abs(diff);
                 const isActive = diff === 0;
+                const translateX = getFigmaCardOffset(diff);
+                const scale = getFigmaCardScale(absDiff);
 
                 return (
                   <button
@@ -915,10 +1106,10 @@ export default function Dashboard() {
                     data-env={m.id}
                     onClick={() => setEnvironment(m.id)}
                     style={{
-                      transform: `translateX(${diff * 42}%) scale(${isActive ? 1.1 : 1 - absDiff * 0.05})`,
-                      opacity: absDiff === 0 ? 1 : absDiff === 1 ? 0.85 : absDiff === 2 ? 0.6 : absDiff === 3 ? 0.35 : 0.15,
+                      transform: `translateX(${translateX}px) scale(${scale})`,
+                      opacity: absDiff === 0 ? 1 : absDiff === 1 ? 0.76 : absDiff === 2 ? 0.46 : 0.18,
                       zIndex: 10 - absDiff,
-                      filter: isActive ? "none" : `brightness(${1 - absDiff * 0.1})`,
+                      filter: isActive ? "none" : `brightness(${1 - absDiff * 0.05}) saturate(${1 - absDiff * 0.08})`,
                     }}
                   >
                     <img src={m.bgImage} alt="" className="figma-mode-bg" />
@@ -984,7 +1175,7 @@ export default function Dashboard() {
                     </div>
                     <div className="figma-measure-copy">
                       <h2>{isMeasuring ? t.measuring_active : t.measuring_inactive}</h2>
-                      <span className="figma-measure-timestamp">{t.updated} {lastUpdate}</span>
+                      <span className="figma-measure-timestamp">{t.updated} {liveClock}</span>
                     </div>
                   </div>
                   <button
@@ -1012,13 +1203,27 @@ export default function Dashboard() {
 
                 {/* Device list */}
                 <div className="figma-devices">
-                  {devices.map((d) => (
+                  <button
+                    className="figma-devices-collapse"
+                    onClick={() => setDevicesExpanded(e => !e)}
+                    aria-label={devicesExpanded ? "Collapse" : "Expand"}
+                  >
+                    <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.25s" }}>
+                      <ChevronDown size={14} />
+                    </span>
+                  </button>
+                  {(devicesExpanded ? devices : devices.slice(0, 1)).map((d) => {
+                    const isSelectable = d.status === "online";
+                    return (
                     <div key={d.device_id} className="figma-device-group">
                       <div className="figma-device-row">
                         <input
                           type="checkbox"
                           checked={selectedDevices.has(d.device_id)}
+                          disabled={!isSelectable}
+                          style={isSelectable ? {} : { cursor: "not-allowed" }}
                           onChange={() => {
+                            if (!isSelectable) return;
                             setSelectedDevices((prev) => {
                               const next = new Set(prev);
                               if (next.has(d.device_id)) next.delete(d.device_id);
@@ -1027,9 +1232,11 @@ export default function Dashboard() {
                             });
                           }}
                         />
+                        <Cpu size={16} className="figma-device-icon-chip" />
+                        <span className="figma-device-label">Device:</span>
                         <span className="figma-device-name">{d.name}</span>
-                        <span className={`figma-device-status ${d.status === "online" ? "online" : ""}`}>
-                          {d.status === "online" ? t.status_online : t.status_offline}
+                        <span className={`figma-device-status ${d.status === "online" ? "online" : d.status === "error" ? "error" : ""}`}>
+                          {d.status === "online" ? t.status_online : d.status === "error" ? "Error" : t.status_offline}
                         </span>
                         <button
                           className="figma-device-expand"
@@ -1056,7 +1263,8 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
 
                 {/* Air quality gauge */}
@@ -1092,20 +1300,248 @@ export default function Dashboard() {
             )}
 
             {figmaTab === "history" && (
-              <div className="figma-placeholder">
-                <p>{t.nav_history}</p>
+              <div className="figma-preview-grid figma-preview-history">
+                <div className="figma-preview-card figma-history-chart-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">History</span>
+                      <h3>Air quality trend</h3>
+                    </div>
+                    <span className="figma-preview-pill">Last 6 samples</span>
+                  </div>
+                  <div className="figma-history-chart">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={historyPreviewData}>
+                        <CartesianGrid stroke="rgba(148, 163, 184, 0.18)" strokeDasharray="3 3" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} width={34} />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: 12,
+                            border: "1px solid rgba(255,255,255,0.4)",
+                            background: "rgba(255,255,255,0.94)",
+                            boxShadow: "0 12px 32px rgba(15,23,42,0.08)",
+                          }}
+                        />
+                        <Line type="monotone" dataKey="co2" stroke="#22C55E" strokeWidth={3} dot={{ r: 3, fill: "#22C55E" }} />
+                        <Line type="monotone" dataKey="temp" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Highlights</span>
+                      <h3>Quick insights</h3>
+                    </div>
+                  </div>
+                  <div className="figma-history-summary">
+                    {historySummary.map((item) => (
+                      <div key={item.label} className="figma-summary-row">
+                        <span>{item.label}</span>
+                        <strong className={`figma-summary-tone ${item.tone}`}>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="figma-history-note">
+                    <Clock size={16} />
+                    <span>Example view for trend exploration, comparisons, and chart drill-down.</span>
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Timeline</span>
+                      <h3>Recent events</h3>
+                    </div>
+                  </div>
+                  <div className="figma-timeline">
+                    {[
+                      { time: "10:34", title: "CO2 returned to healthy range", detail: "Living Room dropped under 650 ppm after ventilation." },
+                      { time: "09:52", title: "Humidity rose after sleep scene", detail: "Bedroom reached 48% and stabilized." },
+                      { time: "08:15", title: "Office device reconnected", detail: "Sensor resumed normal 30 s reporting interval." },
+                    ].map((event) => (
+                      <div key={`${event.time}-${event.title}`} className="figma-timeline-item">
+                        <span className="figma-timeline-time">{event.time}</span>
+                        <div>
+                          <strong>{event.title}</strong>
+                          <p>{event.detail}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
             {figmaTab === "devices" && (
-              <div className="figma-placeholder">
-                <p>{t.nav_devices}</p>
+              <div className="figma-preview-grid figma-preview-devices">
+                <div className="figma-preview-card figma-device-preview-list">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Devices</span>
+                      <h3>Registered units</h3>
+                    </div>
+                    <span className="figma-preview-pill">{devicePreviewCards.length} shown</span>
+                  </div>
+                  <div className="figma-device-preview-stack">
+                    {devicePreviewCards.map((device) => (
+                      <div key={device.device_id} className="figma-device-preview-item">
+                        <div className="figma-device-preview-main">
+                          <div className="figma-device-preview-icon">
+                            <Cpu size={18} />
+                          </div>
+                          <div>
+                            <strong>{device.name}</strong>
+                            <p>{device.location}</p>
+                          </div>
+                        </div>
+                        <span className={`figma-device-status ${device.status === "online" ? "online" : device.status === "error" ? "error" : ""}`}>
+                          {device.status}
+                        </span>
+                        <div className="figma-device-preview-meta">
+                          <span>{device.sync}</span>
+                          <span>{device.battery_v?.toFixed(1) ?? "--"}V</span>
+                        </div>
+                        <div className="figma-device-preview-tags">
+                          {device.sensors.map((sensor) => (
+                            <span key={sensor}>{sensor}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Coverage</span>
+                      <h3>Sensor health</h3>
+                    </div>
+                  </div>
+                  <div className="figma-health-meters">
+                    {[
+                      { label: "Connectivity", value: 92, color: "#38BDF8" },
+                      { label: "Battery", value: 78, color: "#22C55E" },
+                      { label: "Calibration", value: 64, color: "#F59E0B" },
+                    ].map((meter) => (
+                      <div key={meter.label} className="figma-meter-row">
+                        <div className="figma-meter-label">
+                          <span>{meter.label}</span>
+                          <strong>{meter.value}%</strong>
+                        </div>
+                        <div className="figma-meter-track">
+                          <span style={{ width: `${meter.value}%`, background: meter.color }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Maintenance</span>
+                      <h3>Upcoming tasks</h3>
+                    </div>
+                  </div>
+                  <div className="figma-maintenance-list">
+                    {[
+                      "Replace Office battery within 6 days",
+                      "Run calibration check for Living Room CO2 sensor",
+                      "Reconnect Bedroom gateway after scheduled move",
+                    ].map((task) => (
+                      <div key={task} className="figma-maintenance-item">
+                        <span className="figma-maintenance-dot" />
+                        <span>{task}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
             {figmaTab === "settings" && (
-              <div className="figma-placeholder">
-                <p>{t.nav_settings}</p>
+              <div className="figma-preview-grid figma-preview-settings">
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Settings</span>
+                      <h3>User preferences</h3>
+                    </div>
+                  </div>
+                  <div className="figma-settings-list">
+                    {settingsPreview.map((item) => (
+                      <div key={item.label} className="figma-settings-item">
+                        <div>
+                          <strong>{item.label}</strong>
+                          <p>{item.hint}</p>
+                        </div>
+                        <span className="figma-preview-pill">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Automation</span>
+                      <h3>Scenes and routines</h3>
+                    </div>
+                  </div>
+                  <div className="figma-automation-list">
+                    {automationPreview.map((item) => (
+                      <div key={item.name} className="figma-automation-item">
+                        <div>
+                          <strong>{item.name}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <span className={`figma-summary-tone ${item.state === "Active" ? "good" : "moderate"}`}>{item.state}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="figma-preview-card">
+                  <div className="figma-preview-head">
+                    <div>
+                      <span className="figma-preview-eyebrow">Profile</span>
+                      <h3>Account snapshot</h3>
+                    </div>
+                  </div>
+                  <div className="figma-profile-preview">
+                    <div className="figma-profile-avatar">
+                      D
+                    </div>
+                    <div>
+                      <strong>Demo User</strong>
+                      <p>demo@projectiot.local</p>
+                    </div>
+                  </div>
+                  <div className="figma-profile-grid">
+                    <div>
+                      <span>Theme</span>
+                      <strong>Light</strong>
+                    </div>
+                    <div>
+                      <span>Language</span>
+                      <strong>CS</strong>
+                    </div>
+                    <div>
+                      <span>Mode</span>
+                      <strong>{mode}</strong>
+                    </div>
+                    <div>
+                      <span>Role</span>
+                      <strong>Owner</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </section>

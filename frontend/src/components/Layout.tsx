@@ -136,9 +136,9 @@ export default function Layout() {
             </div>
           )}
 
-          {/* Style switcher — visible on desktop only */}
+          {/* Style switcher — visible on desktop only; show selected styles */}
           <div className="style-switcher">
-            {allStyles.map(s => (
+            {allStyles.filter(s => [4, 7, 9, 16].includes(s.id)).map(s => (
               <button
                 key={s.id}
                 className={`style-btn ${activeStyle.id === s.id ? "active" : ""}`}
@@ -158,7 +158,7 @@ export default function Layout() {
               onClick={() => setLocale(locale === "cs" ? "en" : "cs")}
               title={t.language}
             >
-              <Globe size={16} />
+              <Globe size={14} />
               <span>{locale === "cs" ? "CZ" : "EN"}</span>
             </button>
 
@@ -168,7 +168,7 @@ export default function Layout() {
               onClick={toggleTheme}
               title={theme === "light" ? t.theme_dark : t.theme_light}
             >
-              {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
             {/* User menu */}

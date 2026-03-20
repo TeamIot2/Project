@@ -107,6 +107,21 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
     tempOffset: -0.8,
     co2Scale: 0.8,
   },
+  {
+    info: {
+      device_id: "esp32-004",
+      name: "Garage",
+      location: "Garage",
+      last_seen: TWO_HOURS_AGO.toISOString(),
+      status: "error" as DeviceStatus,
+      firmware_version: "1.0.0",
+      battery_v: 0,
+    },
+    seed: 999,
+    batteryStart: 0,
+    tempOffset: 0,
+    co2Scale: 1,
+  },
 ];
 
 // ============================================================
