@@ -7,6 +7,7 @@
     "dev": "node ./node_modules/ts-node/dist/bin.js src/server.ts",
     "build": "node ./node_modules/typescript/bin/tsc",
     "start": "node dist/backend/src/server.js",
+    "seed": "node ./node_modules/ts-node/dist/bin.js scripts/seed.ts",
     "mock:generate": "node ./node_modules/ts-node/dist/bin.js scripts/generateMockPayloads.ts"
   },
   "keywords": [],
@@ -14,7 +15,8 @@
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

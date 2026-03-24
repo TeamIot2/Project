@@ -231,7 +231,7 @@ const cs: Translations = {
 };
 
 const en: Translations = {
-  nav_dashboard: "Measurement",
+  nav_dashboard: "Monitoring",
   nav_history: "History",
   nav_devices: "Devices",
   nav_settings: "Settings",
@@ -314,8 +314,8 @@ const en: Translations = {
   hr_connecting: "Connecting...",
   hr_not_supported: "Web Bluetooth is not supported in this browser",
 
-  measuring_active: "Currently measuring",
-  measuring_inactive: "Not collecting data",
+  measuring_active: "Monitoring",
+  measuring_inactive: "Paused",
   measuring_start: "Start",
   measuring_stop: "Stop",
   confirm_stop: "Are you sure you want to stop collecting data?",

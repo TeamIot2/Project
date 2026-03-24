@@ -1,6 +1,8 @@
 // Dashboard page: air quality score, sensor cards with sparklines, environment selector.
 
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useDashboard } from "../contexts/DashboardContext";
 import {
   LineChart,
   Line,
@@ -12,10 +14,12 @@ import {
 } from "recharts";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useVisualStyle } from "../contexts/StyleContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
 import { apiGet } from "../api";
+import { sortDevicesByStatus } from "../utils/deviceSorting";
 import type { EnvironmentalReading, DeviceInfo, MetricConfig } from "../types";
 import type { Translations } from "../i18n/translations";
 import {
@@ -66,7 +70,7 @@ function EnvironmentCarousel({
   return (
     <section className="env-carousel">
       <button className="env-carousel-arrow left" onClick={() => navigate(-1)} aria-label="Previous">
-        ‹
+        â€ą
       </button>
       <div className="env-carousel-track">
         {environments.map((env, i) => {
@@ -85,18 +89,8 @@ function EnvironmentCarousel({
               data-env={env.id}
               onClick={() => onSelect(env.id)}
               style={{
-                transform: `translateX(${diff * (overlayStyle ? 84 : 75)}%) scale(1)`,
-                opacity: overlayStyle
-                  ? absDiff === 0
-                    ? 1
-                    : absDiff === 1
-                      ? 0.72
-                      : 0
-                  : absDiff === 0
-                    ? 1
-                    : absDiff === 1
-                      ? 0.65
-                      : 0.2,
+                transform: `translateX(${diff * (overlayStyle ? 100 : 75)}%) scale(1)`,
+                opacity: absDiff <= 1 ? 1 : 0,
                 zIndex: 10 - absDiff,
               }}
             >
@@ -105,7 +99,7 @@ function EnvironmentCarousel({
                 <>
                   <div className="env-card-overlay" />
                   <div className="env-card-copy">
-                    <Icon size={isActive ? 24 : 20} className="env-card-icon" />
+                    <Icon size={isActive ? 29 : 24} className="env-card-icon" />
                     <span className="env-card-label">{env.label}</span>
                   </div>
                 </>
@@ -117,7 +111,7 @@ function EnvironmentCarousel({
         })}
       </div>
       <button className="env-carousel-arrow right" onClick={() => navigate(1)} aria-label="Next">
-        ›
+        â€ş
       </button>
     </section>
   );
@@ -150,7 +144,7 @@ const sensorLabelKeys: Record<string, keyof Translations> = {
 // Sensor metric configurations
 const metrics: MetricConfig[] = [
   { key: "co2_ppm", label: "CO2", unit: "ppm", color: "var(--chart-co2)", icon: "co2molecule", decimals: 0, chartDomain: [300, 1500] },
-  { key: "temperature_c", label: "Temperature", unit: "°C", color: "var(--chart-temp)", icon: "thermometer", decimals: 1, chartDomain: [15, 35] },
+  { key: "temperature_c", label: "Temperature", unit: "Â°C", color: "var(--chart-temp)", icon: "thermometer", decimals: 1, chartDomain: [15, 35] },
   { key: "humidity_pct", label: "Humidity", unit: "%", color: "var(--chart-humidity)", icon: "droplets", decimals: 1, chartDomain: [20, 80] },
   { key: "pressure_hpa", label: "Pressure", unit: "hPa", color: "var(--chart-pressure)", icon: "wind", decimals: 0, chartDomain: [960, 1060] },
   { key: "light_lux", label: "Light", unit: "lux", color: "var(--chart-light)", icon: "sun", decimals: 0, chartDomain: [0, 1000] },
@@ -313,6 +307,53 @@ function AirQualityGauge({ score, qualityLabel }: { score: number | null; qualit
 }
 
 /**
+ * Small SVG circular gauge for individual sensor quality score.
+ */
+function SensorMiniGauge({
+  score,
+  qualityLabel,
+  compact = false,
+  scoreColor = "#1E293B",
+}: {
+  score: number;
+  qualityLabel: string;
+  compact?: boolean;
+  scoreColor?: string;
+}) {
+  const radius = 40;
+  const stroke = 7;
+  const size = 100;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (score / 100) * circumference;
+  const color = score >= 80 ? "#22C55E" : score >= 60 ? "#FACC15" : score >= 40 ? "#F97316" : "#EF4444";
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sensor-mini-gauge">
+      <circle cx={center} cy={center} r={radius} fill="none" stroke="#E2E8F0" strokeWidth={stroke} />
+      <circle
+        cx={center} cy={center} r={radius} fill="none"
+        stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={`${progress} ${circumference}`}
+        transform={`rotate(-90 ${center} ${center})`}
+      />
+      <text
+        className="sensor-mini-score"
+        x={center}
+        y={center - 3}
+        textAnchor="middle"
+        fontSize={compact ? "16" : "20"}
+        fontWeight="700"
+        fill={scoreColor}
+      >
+        {score}%
+      </text>
+      <text x={center} y={center + 14} textAnchor="middle" fontSize="12" fontWeight="600" fill={color}>{qualityLabel}</text>
+    </svg>
+  );
+}
+
+/**
  * Sparkline component using Recharts.
  */
 function Sparkline({ data, dataKey, color }: { data: Record<string, unknown>[]; dataKey: string; color: string }) {
@@ -339,24 +380,41 @@ function Sparkline({ data, dataKey, color }: { data: Record<string, unknown>[]; 
 export default function Dashboard() {
   const { mode, getQuality, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
+  const { theme } = useTheme();
   const { t } = useI18n();
   const hr = useHeartRate();
 
+  const {
+    isMeasuring, setIsMeasuring,
+    devicesExpanded, setDevicesExpanded,
+    selectedDevices, setSelectedDevices,
+    expandedDevice, setExpandedDevice,
+    selectedDevice, setSelectedDevice,
+    showConfirmModal, setShowConfirmModal,
+  } = useDashboard();
+
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<string>("");
   const [currentReading, setCurrentReading] = useState<EnvironmentalReading | null>(null);
   const [recentReadings, setRecentReadings] = useState<EnvironmentalReading[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>("");
-  const [isMeasuring, setIsMeasuring] = useState(true);
-  const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
-  const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
-  const [showConfirmModal, setShowConfirmModal] = useState<"start" | "stop" | null>(null);
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState(30);
-  const [figmaTab, setFigmaTab] = useState<"measure" | "history" | "devices" | "settings">("measure");
-  const [devicesExpanded, setDevicesExpanded] = useState(true);
+  const [fetchSuccess, setFetchSuccess] = useState(0);
+  const [fetchTotal, setFetchTotal] = useState(0);
+  const [measureStart, setMeasureStart] = useState<number | null>(Date.now());
+  const [uptime, setUptime] = useState("");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const figmaTab = location.pathname === "/history" ? "history"
+    : location.pathname === "/devices" ? "devices"
+    : location.pathname === "/settings" ? "settings"
+    : "measure";
+  const setFigmaTab = useCallback((tab: "measure" | "history" | "devices" | "settings") => {
+    const paths = { measure: "/", history: "/history", devices: "/devices", settings: "/settings" };
+    navigate(paths[tab]);
+  }, [navigate]);
 
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
   const FIGMA_SIDE_CARD_WIDTH = 228;
@@ -402,7 +460,7 @@ export default function Dashboard() {
     { id: "greenhouse", label: "Greenhouse",  icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
 
-  // Accent color for the active mode — drives tab/content border color
+  // Accent color for the active mode â€” drives tab/content border color
   const modeAccentColor: Record<string, string> = {
     sleep:      "#A78BFA",
     office:     "#38BDF8",
@@ -414,7 +472,7 @@ export default function Dashboard() {
   };
   const accentColor = modeAccentColor[mode] ?? "#FDE68A";
 
-  // Live clock — updates every second
+  // Live clock â€” updates every second
   const [liveClock, setLiveClock] = useState(() =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
   );
@@ -437,12 +495,13 @@ export default function Dashboard() {
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
       .then((devs) => {
-        setDevices(devs);
-        if (devs.length > 0 && !selectedDevice) {
-          setSelectedDevice(devs[0].device_id);
+        const sortedDevices = sortDevicesByStatus(devs);
+        setDevices(sortedDevices);
+        if (sortedDevices.length > 0 && !selectedDevice) {
+          setSelectedDevice(sortedDevices[0].device_id);
         }
         // Select all devices for measuring by default
-        setSelectedDevices(new Set(devs.map(d => d.device_id)));
+        setSelectedDevices(new Set(sortedDevices.map(d => d.device_id)));
       })
       .catch((err) => setError(err.message));
   }, []); // Intentional: fetch device list once on mount only
@@ -470,8 +529,11 @@ export default function Dashboard() {
       );
       setRefreshCountdown(30);
       setError(null);
+      setFetchTotal(p => p + 1);
+      setFetchSuccess(p => p + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
+      setFetchTotal(p => p + 1);
     } finally {
       setLoading(false);
     }
@@ -483,6 +545,37 @@ export default function Dashboard() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Track measuring start time
+  useEffect(() => {
+    if (isMeasuring) {
+      setMeasureStart(Date.now());
+    } else {
+      setMeasureStart(null);
+      setUptime("");
+    }
+  }, [isMeasuring]);
+
+  // Live uptime counter
+  useEffect(() => {
+    if (!measureStart) return;
+    function tick() {
+      const elapsed = Math.floor((Date.now() - measureStart!) / 1000);
+      const d = Math.floor(elapsed / 86400);
+      const h = Math.floor((elapsed % 86400) / 3600);
+      const m = Math.floor((elapsed % 3600) / 60);
+      const s = elapsed % 60;
+      const parts: string[] = [];
+      if (d > 0) parts.push(`${d}d`);
+      parts.push(`${h}h`);
+      parts.push(`${String(m).padStart(2, "0")}m`);
+      parts.push(`${String(s).padStart(2, "0")}s`);
+      setUptime(parts.join(" "));
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [measureStart]);
 
   /**
    * Get the sensor value from the current reading, mapping noise to sound_level_adc.
@@ -656,7 +749,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-page" data-env={mode}>
-      {/* Environment carousel — centered active card, looping (mobile only) */}
+      {/* Environment carousel â€” centered active card, looping (mobile only) */}
       <EnvironmentCarousel
         environments={activeEnvironmentDefs}
         activeId={mode}
@@ -677,7 +770,7 @@ export default function Dashboard() {
             <div className="hero-meta">
               <span className={`hero-live-dot ${isMeasuring ? "" : "inactive"}`} />
               <span>{isMeasuring ? t.measuring_active : t.measuring_inactive}</span>
-              {lastUpdate && <span>· {t.updated} {lastUpdate}</span>}
+              {lastUpdate && <span>Â· {t.updated} {lastUpdate}</span>}
               <span className="hero-countdown">{refreshCountdown}s</span>
               <button
                 className="hero-action-btn"
@@ -789,9 +882,12 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <span className="measuring-text">
-            {isMeasuring ? t.measuring_active : t.measuring_inactive}
-          </span>
+          <div className="measuring-copy">
+            <span className="measuring-text">
+              {isMeasuring ? t.measuring_active : t.measuring_inactive}
+            </span>
+            <span className="measuring-timestamp">Live: {liveClock}</span>
+          </div>
         </div>
         <button
           className={`measuring-btn ${isMeasuring ? "stop" : "start"}`}
@@ -816,9 +912,19 @@ export default function Dashboard() {
         </button>
       </section>
 
-      {/* Device selection — expandable with sensor checkboxes */}
-      <section className="device-checkboxes">
-        {devices.map((d) => {
+      {/* Device selection â€” expandable with sensor checkboxes */}
+      <div className="device-checkboxes-wrapper">
+        <button
+          className="devices-collapse-btn"
+          onClick={() => setDevicesExpanded(e => !e)}
+          aria-label={devicesExpanded ? "Collapse" : "Expand"}
+        >
+          <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
+            <ChevronDown size={14} />
+          </span>
+        </button>
+      <section className={`device-checkboxes ${!devicesExpanded ? "collapsed" : ""}`}>
+        {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
           const isChecked = selectedDevices.has(d.device_id);
           const isExpanded = expandedDevice === d.device_id;
           return (
@@ -840,7 +946,16 @@ export default function Dashboard() {
                 <span className="device-checkbox-name">{d.name}</span>
                 <span
                   className="device-measuring-dot"
-                  style={{ background: d.status === "error" ? "var(--poor)" : isChecked && isMeasuring ? "var(--good)" : "var(--text-muted)" }}
+                  style={{
+                    background:
+                      d.status === "error"
+                        ? "var(--poor)"
+                        : d.status === "offline"
+                          ? "var(--text-muted)"
+                          : isChecked && isMeasuring
+                            ? "var(--good)"
+                            : "var(--text-muted)",
+                  }}
                 />
                 <button
                   className="device-expand-btn"
@@ -867,7 +982,7 @@ export default function Dashboard() {
                       <span className="device-sensor-hw">{sensor.hw}</span>
                       <span
                         className="sensor-measuring-dot"
-                        style={{ background: isChecked && isMeasuring ? "var(--good)" : "var(--text-muted)" }}
+                        style={{ background: d.status === "online" && isChecked && isMeasuring ? "var(--good)" : "var(--text-muted)" }}
                       />
                     </label>
                   ))}
@@ -877,6 +992,7 @@ export default function Dashboard() {
           );
         })}
       </section>
+      </div>
 
       {error && (
         <div className="error-banner">
@@ -957,7 +1073,7 @@ export default function Dashboard() {
               {metric.key === "co2_ppm" && recentReadings.length > 1 && (
                 <div className="sensor-featured-detail">
                   <span className="featured-context">
-                    {recentReadings[0]?.co2_ppm} → {currentReading?.co2_ppm} ppm
+                    {recentReadings[0]?.co2_ppm} â†’ {currentReading?.co2_ppm} ppm
                   </span>
                 </div>
               )}
@@ -1069,10 +1185,23 @@ export default function Dashboard() {
         )}
       </section>
 
+      {/* Monitoring stats panel (mobile) */}
+      <section className="monitoring-stats-panel">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+        <div className="monitoring-stats-text">
+          <span>Uptime: {uptime || "--"}</span>
+          <span>Interval: 30s</span>
+          <span>Reliability: {fetchTotal > 0 ? Math.round((fetchSuccess / fetchTotal) * 100) : 100}%</span>
+        </div>
+      </section>
+
       {/* ===== FIGMA DESKTOP LAYOUT (Style 16) ===== */}
       {activeStyle.id === 16 && (
         <div className="figma-desktop" style={{ "--figma-accent": accentColor } as React.CSSProperties}>
-          {/* Mode Carousel — 7 colorful cards */}
+          {/* Mode Carousel â€” 7 colorful cards */}
           <section className="figma-carousel">
             <button
               className="figma-arrow figma-arrow-left"
@@ -1084,7 +1213,7 @@ export default function Dashboard() {
               }}
               aria-label="Previous"
             >
-              ‹
+              â€ą
             </button>
 
             <div className="figma-carousel-track">
@@ -1107,14 +1236,14 @@ export default function Dashboard() {
                     onClick={() => setEnvironment(m.id)}
                     style={{
                       transform: `translateX(${translateX}px) scale(${scale})`,
-                      opacity: absDiff === 0 ? 1 : absDiff === 1 ? 0.76 : absDiff === 2 ? 0.46 : 0.18,
+                      opacity: 1,
                       zIndex: 10 - absDiff,
                       filter: isActive ? "none" : `brightness(${1 - absDiff * 0.05}) saturate(${1 - absDiff * 0.08})`,
                     }}
                   >
                     <img src={m.bgImage} alt="" className="figma-mode-bg" />
                     <div className="figma-mode-overlay" style={{ background: m.gradient }} />
-                    <m.icon size={isActive ? 28 : 18} className="figma-mode-icon" />
+                    <m.icon size={isActive ? 44 : 36} className="figma-mode-icon" />
                     <span className="figma-mode-label">{m.label}</span>
                   </button>
                 );
@@ -1131,7 +1260,7 @@ export default function Dashboard() {
               }}
               aria-label="Next"
             >
-              ›
+              â€ş
             </button>
           </section>
 
@@ -1175,7 +1304,18 @@ export default function Dashboard() {
                     </div>
                     <div className="figma-measure-copy">
                       <h2>{isMeasuring ? t.measuring_active : t.measuring_inactive}</h2>
-                      <span className="figma-measure-timestamp">{t.updated} {liveClock}</span>
+                      <span className="figma-measure-timestamp">Live: {liveClock}</span>
+                    </div>
+                  </div>
+                  <div className="figma-measure-stats">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <div className="figma-measure-stats-text">
+                      <span>Uptime: {uptime || "--"}</span>
+                      <span>Interval: 30s</span>
+                      <span>Reliability: {fetchTotal > 0 ? Math.round((fetchSuccess / fetchTotal) * 100) : 100}%</span>
                     </div>
                   </div>
                   <button
@@ -1202,17 +1342,18 @@ export default function Dashboard() {
                 </div>
 
                 {/* Device list */}
-                <div className="figma-devices">
+                <div className="figma-devices-wrapper">
                   <button
                     className="figma-devices-collapse"
                     onClick={() => setDevicesExpanded(e => !e)}
                     aria-label={devicesExpanded ? "Collapse" : "Expand"}
                   >
-                    <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.25s" }}>
+                    <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
                       <ChevronDown size={14} />
                     </span>
                   </button>
-                  {(devicesExpanded ? devices : devices.slice(0, 1)).map((d) => {
+                <div className={`figma-devices ${!devicesExpanded ? "collapsed" : ""}`}>
+                  {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
                     const isSelectable = d.status === "online";
                     return (
                     <div key={d.device_id} className="figma-device-group">
@@ -1266,6 +1407,7 @@ export default function Dashboard() {
                   );
                   })}
                 </div>
+                </div>
 
                 {/* Air quality gauge */}
                 <div className="figma-gauge-section">
@@ -1286,12 +1428,20 @@ export default function Dashboard() {
                     const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
                     return (
                       <div key={metric.key} className="figma-sensor-card" style={{ borderTopColor: borderColor }}>
-                        <div className="figma-sensor-icon" style={{ color: borderColor }}><IconComponent size={18} /></div>
-                        <span className="figma-sensor-label">{translatedLabel}</span>
-                        <span className="figma-sensor-value">
-                          {value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small>
-                        </span>
-                        <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
+                        <div className="figma-sensor-card-content">
+                          <div className="figma-sensor-icon" style={{ color: borderColor }}><IconComponent size={18} /></div>
+                          <span className="figma-sensor-label">{translatedLabel}</span>
+                          <span className="figma-sensor-value">
+                            {value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small>
+                          </span>
+                          <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
+                        </div>
+                        <SensorMiniGauge
+                          score={quality === "good" ? 100 : quality === "moderate" ? 60 : 20}
+                          qualityLabel={getQualityLabel(quality)}
+                          compact
+                          scoreColor={theme === "dark" ? "#CBD5E1" : "#1E293B"}
+                        />
                       </div>
                     );
                   })}

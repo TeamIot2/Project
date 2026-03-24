@@ -1,6 +1,6 @@
 // Centralized API client with auth token handling
 
-const API_BASE = "http://localhost:3001/api";
+const API_BASE = import.meta.env.DEV ? "http://localhost:3001/api" : "/api";
 
 /**
  * Build a URL with query parameters.

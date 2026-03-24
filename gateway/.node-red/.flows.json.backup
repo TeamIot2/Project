@@ -1,0 +1,216 @@
+[
+    {
+        "id": "iot-env-monitor-tab",
+        "type": "tab",
+        "label": "IoT Env Monitor",
+        "disabled": false,
+        "info": "ESP32 Environmental Monitoring Gateway"
+    },
+    {
+        "id": "serial-in-note",
+        "type": "comment",
+        "z": "iot-env-monitor-tab",
+        "name": "1. SERIAL INPUT (install node-red-node-serialport)",
+        "info": "After installing serialport node:\n1. Drag serial-in here\n2. Configure: USB port, baud 115200\n3. Split on newline\n4. Connect to Parse JSON",
+        "x": 280,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "sim-inject",
+        "type": "inject",
+        "z": "iot-env-monitor-tab",
+        "name": "Simulate ESP32 (10s)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "10",
+        "crontab": "",
+        "once": false,
+        "onceDelay": "5",
+        "topic": "",
+        "payload": "{\"device_id\":\"esp32-001\",\"co2_ppm\":487,\"temperature_c\":22.3,\"humidity_pct\":48.1,\"pressure_hpa\":1013.2,\"light_lux\":342,\"sound_level_adc\":1850,\"sound_peak_adc\":2100,\"sound_rms_adc\":1780,\"sound_event\":false,\"battery_v\":3.92}",
+        "payloadType": "str",
+        "x": 200,
+        "y": 160,
+        "wires": [
+            [
+                "parse-json"
+            ]
+        ]
+    },
+    {
+        "id": "parse-json",
+        "type": "json",
+        "z": "iot-env-monitor-tab",
+        "name": "Parse JSON",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 450,
+        "y": 160,
+        "wires": [
+            [
+                "validate-fn"
+            ]
+        ]
+    },
+    {
+        "id": "validate-fn",
+        "type": "function",
+        "z": "iot-env-monitor-tab",
+        "name": "Validate & Enrich",
+        "func": "var d = msg.payload;\nvar required = [\"device_id\",\"co2_ppm\",\"temperature_c\",\"humidity_pct\",\"pressure_hpa\",\"light_lux\",\"sound_level_adc\"];\nvar missing = required.filter(function(k){ return d[k] === undefined; });\nif (missing.length > 0) { node.warn(\"Missing: \" + missing.join(\", \")); return null; }\nif (d.co2_ppm < 0 || d.co2_ppm > 5000) { node.warn(\"CO2 out of range\"); return null; }\nif (d.temperature_c < -40 || d.temperature_c > 85) { node.warn(\"Temp out of range\"); return null; }\nif (d.humidity_pct < 0 || d.humidity_pct > 100) { node.warn(\"Humidity out of range\"); return null; }\nd.timestamp = new Date().toISOString();\nd.gateway_id = \"node-red-gw-01\";\nd.source = \"uart\";\nif (d.sound_peak_adc === undefined) d.sound_peak_adc = d.sound_level_adc;\nif (d.sound_rms_adc === undefined) d.sound_rms_adc = d.sound_level_adc;\nif (d.sound_event === undefined) d.sound_event = false;\nmsg.payload = d;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 160,
+        "wires": [
+            [
+                "debug-raw",
+                "buffer-fn"
+            ]
+        ]
+    },
+    {
+        "id": "debug-raw",
+        "type": "debug",
+        "z": "iot-env-monitor-tab",
+        "name": "Debug: reading",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload.device_id",
+        "statusType": "auto",
+        "x": 870,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "buffer-fn",
+        "type": "function",
+        "z": "iot-env-monitor-tab",
+        "name": "Buffer (batch 6)",
+        "func": "var MAX = 6;\nvar buffer = flow.get(\"readingBuffer\") || [];\nbuffer.push(msg.payload);\nif (buffer.length >= MAX) {\n    var batch = buffer.splice(0, MAX);\n    flow.set(\"readingBuffer\", buffer);\n    var seq = (flow.get(\"seq\") || 0) + 1;\n    flow.set(\"seq\", seq);\n    msg.payload = { gateway_id: \"node-red-gw-01\", sent_at: new Date().toISOString(), sequence: seq, readings: batch };\n    node.status({fill:\"green\",shape:\"dot\",text:batch.length+\" sent (seq \"+seq+\")\"});\n    return msg;\n} else {\n    flow.set(\"readingBuffer\", buffer);\n    node.status({fill:\"yellow\",shape:\"ring\",text:\"buffered: \"+buffer.length+\"/\"+MAX});\n    return null;\n}",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "flow.set(\"readingBuffer\",[]);\nflow.set(\"seq\",0);",
+        "finalize": "",
+        "libs": [],
+        "x": 870,
+        "y": 200,
+        "wires": [
+            [
+                "http-post",
+                "debug-batch"
+            ]
+        ]
+    },
+    {
+        "id": "debug-batch",
+        "type": "debug",
+        "z": "iot-env-monitor-tab",
+        "name": "Debug: batch",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 1110,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "http-post",
+        "type": "http request",
+        "z": "iot-env-monitor-tab",
+        "name": "POST to Backend",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://localhost:3001/api/readings/ingest",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": true,
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "Content-Type",
+                "valueType": "other",
+                "valueValue": "application/json"
+            },
+            {
+                "keyType": "other",
+                "keyValue": "X-Gateway-Key",
+                "valueType": "other",
+                "valueValue": "gw-secret-key-change-me"
+            }
+        ],
+        "x": 1110,
+        "y": 200,
+        "wires": [
+            [
+                "response-check"
+            ]
+        ]
+    },
+    {
+        "id": "response-check",
+        "type": "function",
+        "z": "iot-env-monitor-tab",
+        "name": "Check Response",
+        "func": "if (msg.statusCode === 200 || msg.statusCode === 201) {\n    node.status({fill:\"green\",shape:\"dot\",text:\"OK \"+msg.statusCode});\n} else {\n    node.warn(\"Backend error: \"+msg.statusCode);\n    node.status({fill:\"red\",shape:\"ring\",text:\"ERR \"+msg.statusCode});\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1320,
+        "y": 200,
+        "wires": [
+            [
+                "debug-resp"
+            ]
+        ]
+    },
+    {
+        "id": "debug-resp",
+        "type": "debug",
+        "z": "iot-env-monitor-tab",
+        "name": "Debug: response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "x": 1530,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "comment-arch",
+        "type": "comment",
+        "z": "iot-env-monitor-tab",
+        "name": "ESP32 --UART--> Node-RED --HTTP POST--> Express.js",
+        "info": "Data flow:\n1. ESP32 sends JSON via UART every 10s\n2. Parse, validate, enrich with timestamp\n3. Buffer 6 readings (~60s)\n4. POST batch as GatewayIngestPayload",
+        "x": 290,
+        "y": 40,
+        "wires": []
+    }
+]

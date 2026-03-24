@@ -6,6 +6,7 @@ import { useI18n } from "../contexts/I18nContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import type { DeviceInfo, EnvironmentalReading } from "../types";
 import { Cpu, Wifi, WifiOff, AlertCircle, Battery, Clock, ChevronDown } from "../components/Icons";
+import { sortDevicesByStatus } from "../utils/deviceSorting";
 
 function timeAgo(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -138,17 +139,48 @@ function DeviceRow({ device }: { device: DeviceInfo }) {
 }
 
 export default function Devices() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isCs = locale === "cs";
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [newDeviceLocation, setNewDeviceLocation] = useState("");
+  const [newDeviceTransport, setNewDeviceTransport] = useState("wifi");
+  const [connectMessage, setConnectMessage] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
-      .then(setDevices)
+      .then((devs) => setDevices(sortDevicesByStatus(devs)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function resetConnectModal() {
+    setConnectModalOpen(false);
+    setConnectMessage(null);
+    setNewDeviceName("");
+    setNewDeviceLocation("");
+    setNewDeviceTransport("wifi");
+  }
+
+  function handleConnectDevice() {
+    if (!newDeviceName.trim()) {
+      setConnectMessage(
+        isCs
+          ? "Vypln nazev zarizeni."
+          : "Enter a device name."
+      );
+      return;
+    }
+
+    setConnectMessage(
+      isCs
+        ? "Pripojeni noveho zarizeni je pripraveno (demo flow)."
+        : "New device connect flow is ready (demo mode)."
+    );
+  }
 
   if (loading) {
     return (
@@ -175,6 +207,15 @@ export default function Devices() {
           <h1 className="devices-title">{t.devices_title}</h1>
           <p className="text-secondary">{t.registered_devices}: {devices.length}</p>
         </div>
+        <div className="devices-hero-actions">
+          <button className="btn btn-primary btn-sm devices-connect-btn" onClick={() => setConnectModalOpen(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>{isCs ? "Pripojit nove zarizeni" : "Connect new device"}</span>
+          </button>
+        </div>
       </div>
 
       <div className="devices-list">
@@ -182,6 +223,61 @@ export default function Devices() {
           <DeviceRow key={device.device_id} device={device} />
         ))}
       </div>
+
+      {connectModalOpen && (
+        <div className="modal-overlay" onClick={resetConnectModal}>
+          <div className="modal-card devices-connect-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="devices-connect-title">
+              {isCs ? "Pripojit nove zarizeni" : "Connect new device"}
+            </h3>
+            <p className="devices-connect-subtitle text-secondary">
+              {isCs
+                ? "Vytvor pripojovaci profil noveho senzoru."
+                : "Create a new sensor connection profile."}
+            </p>
+
+            <div className="devices-connect-form">
+              <div className="form-group">
+                <label className="form-label">{isCs ? "Nazev zarizeni" : "Device name"}</label>
+                <input
+                  className="form-input"
+                  value={newDeviceName}
+                  onChange={(e) => setNewDeviceName(e.target.value)}
+                  placeholder={isCs ? "napr. Trida 2A" : "e.g. Office sensor"}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{isCs ? "Misto" : "Location"}</label>
+                <input
+                  className="form-input"
+                  value={newDeviceLocation}
+                  onChange={(e) => setNewDeviceLocation(e.target.value)}
+                  placeholder={isCs ? "napr. 2. patro" : "e.g. 2nd floor"}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">{isCs ? "Typ pripojeni" : "Connection type"}</label>
+                <select className="form-select" value={newDeviceTransport} onChange={(e) => setNewDeviceTransport(e.target.value)}>
+                  <option value="wifi">Wi-Fi</option>
+                  <option value="ble">Bluetooth LE</option>
+                  <option value="usb">USB Gateway</option>
+                </select>
+              </div>
+            </div>
+
+            {connectMessage && <p className="devices-connect-message">{connectMessage}</p>}
+
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={resetConnectModal}>
+                {isCs ? "Zavrit" : "Close"}
+              </button>
+              <button className="btn btn-primary" onClick={handleConnectDevice}>
+                {isCs ? "Pripojit" : "Connect"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

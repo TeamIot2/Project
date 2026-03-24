@@ -41,10 +41,7 @@ export function useVisualStyle(): StyleState {
 }
 
 export function StyleProvider({ children }: { children: React.ReactNode }) {
-  const [styleId, setStyleId] = useState(() => {
-    const stored = localStorage.getItem("visualStyle");
-    return stored ? parseInt(stored, 10) : 2; // Default to Dark Tech
-  });
+  const [styleId, setStyleId] = useState(16);
 
   const setStyle = useCallback((id: number) => {
     setStyleId(id);
@@ -53,9 +50,10 @@ export function StyleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-style", String(styleId));
+    localStorage.setItem("visualStyle", String(styleId));
   }, [styleId]);
 
-  const activeStyle = styles.find(s => s.id === styleId) ?? styles[1];
+  const activeStyle = styles.find(s => s.id === styleId) ?? styles.find(s => s.id === 16) ?? styles[0];
 
   return (
     <StyleContext.Provider value={{ activeStyle, setStyle, allStyles: styles }}>

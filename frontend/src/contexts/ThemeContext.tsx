@@ -1,4 +1,4 @@
-// Theme context: light and dark mode with system preference detection
+// Theme context: light and dark mode
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
@@ -19,13 +19,7 @@ export function useTheme(): ThemeState {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = localStorage.getItem("theme") as Theme | null;
-    if (stored === "light" || stored === "dark") return stored;
-    // Detect system preference
-    if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
-    return "light";
-  });
+  const [theme, setThemeState] = useState<Theme>("light");
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
@@ -39,6 +33,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Apply theme class to document root
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
   return (

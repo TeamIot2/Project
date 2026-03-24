@@ -18,6 +18,7 @@ import { useEnvironment } from "../contexts/EnvironmentContext";
 import type { EnvironmentalReading, DeviceInfo, MetricConfig, EnvironmentMode } from "../types";
 import { ChevronDown, Cpu } from "../components/Icons";
 import type { Translations } from "../i18n/translations";
+import { sortDevicesByStatus } from "../utils/deviceSorting";
 
 // Chart metric configurations
 const metrics: MetricConfig[] = [
@@ -121,9 +122,10 @@ export default function History() {
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
       .then((devs) => {
-        setDevices(devs);
-        if (devs.length > 0 && !selectedDevice) {
-          setSelectedDevice(devs[0].device_id);
+        const sortedDevices = sortDevicesByStatus(devs);
+        setDevices(sortedDevices);
+        if (sortedDevices.length > 0 && !selectedDevice) {
+          setSelectedDevice(sortedDevices[0].device_id);
         }
       })
       .catch((err) => setError(err.message));
