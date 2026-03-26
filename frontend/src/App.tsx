@@ -8,6 +8,8 @@ import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
 import { EnvironmentProvider } from "./contexts/EnvironmentContext";
 import { DashboardProvider } from "./contexts/DashboardContext";
 import { DualViewPreferenceProvider } from "./contexts/DualViewPreferenceContext";
+import { ExpandedDevicesProvider } from "./contexts/ExpandedDevicesContext";
+import { SettingsStateProvider } from "./contexts/SettingsStateContext";
 import Layout from "./components/Layout";
 import DualViewShell from "./components/DualViewShell";
 import Login from "./pages/Login";
@@ -41,9 +43,13 @@ export default function App() {
             <EnvironmentProvider>
               <DashboardProvider>
                 <DualViewPreferenceProvider>
-                  <BrowserRouter>
-                    <DualViewShell Content={AppContent} />
-                  </BrowserRouter>
+                  <ExpandedDevicesProvider>
+                    <SettingsStateProvider>
+                      <BrowserRouter>
+                        <DualViewShell Content={AppContent} />
+                      </BrowserRouter>
+                    </SettingsStateProvider>
+                  </ExpandedDevicesProvider>
                 </DualViewPreferenceProvider>
               </DashboardProvider>
             </EnvironmentProvider>

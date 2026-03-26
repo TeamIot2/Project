@@ -4,9 +4,21 @@ import { useState, useEffect } from "react";
 import { apiGet } from "../api";
 import { useI18n } from "../contexts/I18nContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
-import type { DeviceInfo, EnvironmentalReading } from "../types";
-import { Cpu, Wifi, WifiOff, AlertCircle, Battery, Clock, ChevronDown } from "../components/Icons";
+import { useDashboard } from "../contexts/DashboardContext";
+import type { DeviceInfo, EnvironmentalReading, EnvironmentMode } from "../types";
+import { Cpu, Battery, Clock, ChevronDown, Co2Molecule, Thermometer, Droplets, Activity, Sun, Volume2, LogOut } from "../components/Icons";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
+import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
+
+const ALL_ENV_MODES: EnvironmentMode[] = [
+  "sleep",
+  "office",
+  "sport",
+  "outdoor",
+  "school",
+  "factory",
+  "greenhouse",
+];
 
 function timeAgo(isoString: string): string {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -21,26 +33,45 @@ function timeAgo(isoString: string): string {
 
 // Sensor display config for the expanded view
 const sensorFields = [
-  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "#22C55E" },
-  { key: "temperature_c", label: "sensor_temperature", unit: "°C", color: "#3B82F6" },
-  { key: "humidity_pct", label: "sensor_humidity", unit: "%", color: "#06B6D4" },
-  { key: "pressure_hpa", label: "sensor_pressure", unit: "hPa", color: "#8B5CF6" },
-  { key: "light_lux", label: "sensor_light", unit: "lux", color: "#F59E0B" },
-  { key: "sound_level_adc", label: "sensor_noise", unit: "ADC", color: "#EF4444" },
+  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "#22C55E", range: "0 – 5000" },
+  { key: "temperature_c", label: "sensor_temperature", unit: "°C", color: "#3B82F6", range: "–40 – +85" },
+  { key: "humidity_pct", label: "sensor_humidity", unit: "%", color: "#06B6D4", range: "0 – 100" },
+  { key: "pressure_hpa", label: "sensor_pressure", unit: "hPa", color: "#8B5CF6", range: "300 – 1100" },
+  { key: "light_lux", label: "sensor_light", unit: "lux", color: "#F59E0B", range: "1 – 65535" },
+  { key: "sound_level_adc", label: "sensor_noise", unit: "ADC", color: "#EF4444", range: "0 – 4095", rangeNote: "≈ 30 – 100 dB est." },
 ] as const;
 
-function DeviceRow({ device }: { device: DeviceInfo }) {
+const sensorIconMap: Record<string, typeof Co2Molecule> = {
+  co2_ppm: Co2Molecule,
+  temperature_c: Thermometer,
+  humidity_pct: Droplets,
+  pressure_hpa: Activity,
+  light_lux: Sun,
+  sound_level_adc: Volume2,
+};
+
+function DeviceRow({
+  device,
+  onRenameDevice,
+  onDisconnectDevice,
+}: {
+  device: DeviceInfo;
+  onRenameDevice: (deviceId: string, nextName: string) => void;
+  onDisconnectDevice: (deviceId: string) => void;
+}) {
   const { t } = useI18n();
   const { getQuality } = useEnvironment();
-  const [expanded, setExpanded] = useState(false);
+  const {
+    selectedDevices,
+    setSelectedDevices,
+    deviceModeAssignments,
+    setDeviceModeAssignments,
+  } = useDashboard();
+  const { toggle: toggleExpand, isExpanded } = useExpandedDevices();
+  const expanded = isExpanded(device.device_id);
   const [reading, setReading] = useState<EnvironmentalReading | null>(null);
   const [loadingReading, setLoadingReading] = useState(false);
-
-  function statusLabel(status: string): string {
-    if (status === "online") return t.status_online;
-    if (status === "offline") return t.status_offline;
-    return t.status_error;
-  }
+  const [renameValue, setRenameValue] = useState(device.name);
 
   // Fetch latest reading when expanded
   useEffect(() => {
@@ -53,88 +84,177 @@ function DeviceRow({ device }: { device: DeviceInfo }) {
     }
   }, [expanded, reading, loadingReading, device.device_id]);
 
+  useEffect(() => {
+    setRenameValue(device.name);
+  }, [device.name]);
+
   // Translate sensor label keys
   function getSensorLabel(label: string): string {
     const key = label as keyof typeof t;
     return (t[key] as string) ?? label;
   }
 
+  function handleConfirmRename() {
+    const nextName = renameValue.trim();
+    if (!nextName || nextName === device.name) return;
+    onRenameDevice(device.device_id, nextName);
+  }
+
+  const assignedModes = deviceModeAssignments[device.device_id] ?? ALL_ENV_MODES;
+  const modeLabels: Record<EnvironmentMode, string> = {
+    sleep: t.env_sleep,
+    office: t.env_office,
+    sport: t.env_sport,
+    outdoor: t.env_outdoor,
+    school: t.env_school,
+    factory: t.env_factory,
+    greenhouse: t.env_greenhouse,
+  };
+
+  function getShortModeLabel(envMode: EnvironmentMode): string {
+    const source = modeLabels[envMode] ?? envMode;
+    return source.split("/")[0].trim();
+  }
+
+  function toggleModeAssignment(targetMode: EnvironmentMode) {
+    setDeviceModeAssignments((prev) => {
+      const current = new Set(prev[device.device_id] ?? ALL_ENV_MODES);
+      if (current.has(targetMode)) current.delete(targetMode);
+      else current.add(targetMode);
+
+      const nextModes = ALL_ENV_MODES.filter((mode) => current.has(mode));
+      const next = { ...prev, [device.device_id]: nextModes };
+
+      // Full mode set is implicit default; keep storage compact.
+      if (nextModes.length === ALL_ENV_MODES.length) {
+        delete next[device.device_id];
+      }
+      return next;
+    });
+  }
+
   return (
-    <article className="card device-row">
-      <button className="device-row-header" onClick={() => setExpanded(!expanded)}>
-        <div className="device-row-left">
-          <div className="device-icon">
-            <Cpu size={20} />
-          </div>
-          <div className="device-row-info">
-            <span className="device-name-label">Device name</span>
-            <h3 className="device-name">{device.name}</h3>
-          </div>
-        </div>
-
-        <div className="device-row-right">
-          <span className={`status-badge status-${device.status}`}>
-            {device.status === "online" && <Wifi size={12} />}
-            {device.status === "offline" && <WifiOff size={12} />}
-            {device.status === "error" && <AlertCircle size={12} />}
-            <span>{statusLabel(device.status)}</span>
-          </span>
-          <ChevronDown size={16} className={`device-chevron ${expanded ? "open" : ""}`} />
-        </div>
-      </button>
-
+    <div className="figma-device-group">
+      <div className="figma-device-row">
+        <Cpu size={16} className="figma-device-icon-chip" />
+        <span className="figma-device-label">Device:</span>
+        <span className="figma-device-name">{device.name}</span>
+        <button
+          className="figma-device-expand"
+          onClick={() => toggleExpand(device.device_id)}
+        >
+          <ChevronDown size={16} className={`figma-chevron ${expanded ? "open" : ""}`} />
+        </button>
+      </div>
       {expanded && (
         <div className="device-row-body">
-          <div className="device-meta-row">
-            <span className="device-location">{device.location}</span>
-            <div className="device-meta-group">
-              <div className="device-meta">
-                <Clock size={12} />
-                <span>{timeAgo(device.last_seen)} {t.ago}</span>
-              </div>
-              {device.battery_v !== undefined && (
-                <div className="device-meta">
-                  <Battery size={12} />
-                  <span>{device.battery_v.toFixed(1)}V</span>
-                </div>
-              )}
-              {device.firmware_version && (
-                <div className="device-meta">
-                  <span className="fw-label">{t.firmware}</span>
-                  <span>{device.firmware_version}</span>
-                </div>
-              )}
-            </div>
+          <div className="device-tech-desc">
+            <b>LOLIN32 ESP32</b> — main board, 240 MHz, WiFi/Bluetooth
+            {" · "}
+            <b>MH-Z19B</b> — CO2 sensor, 0–5000 ppm
+            {" · "}
+            <b>BME280</b> — temperature, humidity &amp; pressure sensor
+            {" · "}
+            <b>BH1750</b> — ambient light sensor, 1–65535 lux
+            {" · "}
+            <b>MAX9814</b> — microphone module for noise detection
           </div>
 
-          {loadingReading ? (
-            <div className="device-sensors-loading">
-              {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 36, borderRadius: 8 }} />)}
+          <div className="device-meta-group device-meta-group--left">
+            <div className="device-meta">
+              <Clock size={12} />
+              <span>Last data: {timeAgo(device.last_seen)} {t.ago}</span>
             </div>
-          ) : reading ? (
-            <div className="device-sensors-grid">
-              {sensorFields.map((sf) => {
-                const value = reading[sf.key as keyof EnvironmentalReading] as number | undefined;
-                const qualityKey = sf.key === "sound_level_adc" ? "noise_adc" : sf.key;
-                const quality = value !== undefined ? getQuality(qualityKey, value) : "moderate";
+            {device.battery_v !== undefined && (
+              <div className="device-meta">
+                <Battery size={12} />
+                <span>{device.battery_v.toFixed(1)}V</span>
+              </div>
+            )}
+            {device.firmware_version && (
+              <div className="device-meta">
+                <Cpu size={12} />
+                <span>Firmware {device.firmware_version}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="device-rename-row">
+            <span className="device-rename-label">Rename device</span>
+            <input
+              type="text"
+              className="form-input device-rename-input"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmRename();
+              }}
+              aria-label="Rename device"
+            />
+            <button
+              type="button"
+              className="btn btn-sm btn-outline device-rename-confirm"
+              onClick={handleConfirmRename}
+              disabled={!renameValue.trim() || renameValue.trim() === device.name}
+            >
+              Confirm
+            </button>
+          </div>
+
+          <div className="device-mode-row">
+            <span className="device-mode-label">This device contributes to these modes:</span>
+            <div className="device-mode-chips">
+              {ALL_ENV_MODES.map((envMode) => {
+                const isActive = assignedModes.includes(envMode);
                 return (
-                  <div key={sf.key} className="device-sensor-item" style={{ borderLeftColor: sf.color }}>
-                    <span className="device-sensor-label">{getSensorLabel(sf.label)}</span>
-                    <span className="device-sensor-value">
-                      {value !== undefined ? (sf.key === "temperature_c" ? value.toFixed(1) : Math.round(value)) : "--"}
-                      <small>{sf.unit}</small>
-                    </span>
-                    <span className={`device-sensor-quality quality-${quality}`} />
-                  </div>
+                  <button
+                    key={envMode}
+                    type="button"
+                    className={`device-mode-chip ${isActive ? "active" : ""}`}
+                    onClick={() => toggleModeAssignment(envMode)}
+                    aria-pressed={isActive}
+                    title={isActive ? "Click to remove mode" : "Click to add mode"}
+                  >
+                    {getShortModeLabel(envMode)}
+                  </button>
                 );
               })}
             </div>
-          ) : (
-            <p className="text-muted" style={{ fontSize: "0.75rem" }}>No data</p>
-          )}
+          </div>
+
+          <h4 className="device-measures-heading">This device measures:</h4>
+          <div className="device-sensors-grid">
+            {sensorFields.map((sf) => {
+              const SensorIcon = sensorIconMap[sf.key] ?? Co2Molecule;
+              return (
+                <div key={sf.key} className="device-sensor-item" style={{ borderLeftColor: sf.color }}>
+                  <span className="device-sensor-label">{getSensorLabel(sf.label)}</span>
+                  <span className="device-sensor-value">
+                    {sf.range}
+                    <small> {sf.unit}</small>
+                  </span>
+                  {"rangeNote" in sf && sf.rangeNote && (
+                    <span className="device-sensor-note">{sf.rangeNote}</span>
+                  )}
+                  <span style={{ color: sf.color, display: "inline-flex" }}><SensorIcon size={14} /></span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="device-disconnect-row">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline btn-danger device-disconnect-btn"
+              onClick={() => onDisconnectDevice(device.device_id)}
+            >
+              <LogOut size={14} />
+              <span>{t.disconnect_device ?? "Disconnect device"}</span>
+            </button>
+          </div>
         </div>
       )}
-    </article>
+    </div>
   );
 }
 
@@ -156,6 +276,26 @@ export default function Devices() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function handleRenameDevice(deviceId: string, nextName: string) {
+    setDevices((prev) =>
+      prev.map((device) =>
+        device.device_id === deviceId ? { ...device, name: nextName } : device
+      )
+    );
+  }
+
+  function handleDisconnectDevice(deviceId: string) {
+    setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
+  }
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!connectModalOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") resetConnectModal(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  });
 
   function resetConnectModal() {
     setConnectModalOpen(false);
@@ -218,9 +358,15 @@ export default function Devices() {
         </div>
       </div>
 
-      <div className="devices-list">
+      <div className="devices-list figma-devices">
         {devices.map((device) => (
-          <DeviceRow key={device.device_id} device={device} />
+          <div key={device.device_id} className="card device-card-wrapper">
+            <DeviceRow
+              device={device}
+              onRenameDevice={handleRenameDevice}
+              onDisconnectDevice={handleDisconnectDevice}
+            />
+          </div>
         ))}
       </div>
 

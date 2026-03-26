@@ -1,6 +1,6 @@
 // Dashboard page: air quality score, sensor cards with sparklines, environment selector.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from "../contexts/DashboardContext";
 import {
@@ -377,6 +377,19 @@ function Sparkline({ data, dataKey, color }: { data: Record<string, unknown>[]; 
   );
 }
 
+type DeviceSelectionConfirmAction = "select" | "deselect" | "deselect_last";
+
+interface DeviceSelectionConfirmState {
+  deviceId: string;
+  deviceName: string;
+  action: DeviceSelectionConfirmAction;
+}
+
+interface DisconnectWarningState {
+  deviceName: string;
+  stopAllMonitoring: boolean;
+}
+
 export default function Dashboard() {
   const { mode, getQuality, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
@@ -394,6 +407,7 @@ export default function Dashboard() {
   } = useDashboard();
 
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
+  const [devicesLoaded, setDevicesLoaded] = useState(false);
   const [currentReading, setCurrentReading] = useState<EnvironmentalReading | null>(null);
   const [recentReadings, setRecentReadings] = useState<EnvironmentalReading[]>([]);
   const [loading, setLoading] = useState(true);
@@ -405,6 +419,8 @@ export default function Dashboard() {
   const [fetchTotal, setFetchTotal] = useState(0);
   const [measureStart, setMeasureStart] = useState<number | null>(Date.now());
   const [uptime, setUptime] = useState("");
+  const [deviceSelectionConfirm, setDeviceSelectionConfirm] = useState<DeviceSelectionConfirmState | null>(null);
+  const [disconnectWarning, setDisconnectWarning] = useState<DisconnectWarningState | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const figmaTab = location.pathname === "/history" ? "history"
@@ -418,6 +434,127 @@ export default function Dashboard() {
 
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
   const FIGMA_SIDE_CARD_WIDTH = 228;
+  const forcedModeWithoutDeviceForTesting: EnvironmentMode = "greenhouse";
+
+  const isDeviceEnabledForMode = useCallback(
+    (_deviceId: string, envMode: EnvironmentMode) => {
+      // Test override:
+      // - "greenhouse" behaves as mode with no assigned devices
+      // - all other modes behave as assigned/connected
+      return envMode !== forcedModeWithoutDeviceForTesting;
+    },
+    [forcedModeWithoutDeviceForTesting]
+  );
+  const eligibleDeviceIdsForMode = useMemo(
+    () =>
+      devices
+        .filter((d) => isDeviceEnabledForMode(d.device_id, mode))
+        .map((d) => d.device_id),
+    [devices, isDeviceEnabledForMode, mode]
+  );
+  const onlineEligibleDeviceIdsForMode = useMemo(
+    () =>
+      devices
+        .filter((d) => d.status === "online" && eligibleDeviceIdsForMode.includes(d.device_id))
+        .map((d) => d.device_id),
+    [devices, eligibleDeviceIdsForMode]
+  );
+  const selectedOnlineDeviceIdsForMode = useMemo(
+    () => Array.from(selectedDevices).filter((deviceId) => onlineEligibleDeviceIdsForMode.includes(deviceId)),
+    [onlineEligibleDeviceIdsForMode, selectedDevices]
+  );
+  const hasNoAssignedDevicesForMode = devicesLoaded && eligibleDeviceIdsForMode.length === 0;
+  const hasNoSelectedDevicesForMode = selectedOnlineDeviceIdsForMode.length === 0;
+  const isStartBlocked = !isMeasuring && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode);
+
+  const requestMeasureToggle = useCallback(() => {
+    if (isStartBlocked) return;
+    setShowConfirmModal(isMeasuring ? "stop" : "start");
+  }, [isMeasuring, isStartBlocked, setShowConfirmModal]);
+
+  const applyDeviceSelectionChange = useCallback(
+    (device: DeviceInfo, shouldSelect: boolean) => {
+      const nextSelected = new Set(selectedDevices);
+      if (shouldSelect) {
+        nextSelected.add(device.device_id);
+      } else {
+        nextSelected.delete(device.device_id);
+      }
+
+      setSelectedDevices(nextSelected);
+
+      if (shouldSelect) {
+        setSelectedDevice(device.device_id);
+        return;
+      }
+
+      if (selectedDevice === device.device_id) {
+        const fallbackSelected = devices.find(
+          (candidate) =>
+            nextSelected.has(candidate.device_id) &&
+            candidate.status === "online" &&
+            candidate.device_id !== device.device_id
+        );
+        setSelectedDevice(fallbackSelected?.device_id ?? "");
+      }
+    },
+    [devices, selectedDevice, selectedDevices, setSelectedDevice, setSelectedDevices]
+  );
+
+  const requestDeviceSelectionToggle = useCallback(
+    (device: DeviceInfo) => {
+      if (!eligibleDeviceIdsForMode.includes(device.device_id)) return;
+      if (device.status !== "online") return;
+
+      const isChecked = selectedDevices.has(device.device_id);
+      const shouldSelect = !isChecked;
+
+      if (!isMeasuring) {
+        applyDeviceSelectionChange(device, shouldSelect);
+        return;
+      }
+
+      if (shouldSelect) {
+        setDeviceSelectionConfirm({
+          deviceId: device.device_id,
+          deviceName: device.name,
+          action: "select",
+        });
+        return;
+      }
+
+      const selectedOnlineCount = devices.filter(
+        (candidate) => candidate.status === "online" && selectedDevices.has(candidate.device_id)
+      ).length;
+
+      setDeviceSelectionConfirm({
+        deviceId: device.device_id,
+        deviceName: device.name,
+        action: selectedOnlineCount <= 1 ? "deselect_last" : "deselect",
+      });
+    },
+    [applyDeviceSelectionChange, devices, eligibleDeviceIdsForMode, isMeasuring, selectedDevices]
+  );
+
+  const confirmDeviceSelectionToggle = useCallback(() => {
+    if (!deviceSelectionConfirm) return;
+
+    const targetDevice = devices.find((device) => device.device_id === deviceSelectionConfirm.deviceId);
+    if (!targetDevice || targetDevice.status !== "online") {
+      setDeviceSelectionConfirm(null);
+      return;
+    }
+
+    const shouldSelect = deviceSelectionConfirm.action === "select";
+    applyDeviceSelectionChange(targetDevice, shouldSelect);
+
+    if (!shouldSelect && deviceSelectionConfirm.action === "deselect_last" && isMeasuring) {
+      setIsMeasuring(false);
+      setShowConfirmModal(null);
+    }
+
+    setDeviceSelectionConfirm(null);
+  }, [applyDeviceSelectionChange, deviceSelectionConfirm, devices, isMeasuring, setIsMeasuring, setShowConfirmModal]);
 
   function getFigmaCardScale(absDiff: number): number {
     if (absDiff === 0) return 1;
@@ -491,20 +628,134 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch devices on mount
+  const refreshDevices = useCallback(
+    async () => {
+      try {
+        const devs = await apiGet<DeviceInfo[]>("/devices");
+        const sortedDevices = sortDevicesByStatus(devs);
+        const previousById = new Map(devices.map((d) => [d.device_id, d]));
+        const nextById = new Map(sortedDevices.map((d) => [d.device_id, d]));
+        const droppedActiveIds = isMeasuring
+          ? Array.from(selectedDevices).filter((deviceId) => {
+              const prevStatus = previousById.get(deviceId)?.status;
+              const nextStatus = nextById.get(deviceId)?.status;
+              return prevStatus === "online" && !!nextStatus && nextStatus !== "online";
+            })
+          : [];
+
+        setDevices(sortedDevices);
+
+        if (droppedActiveIds.length === 0) {
+          return;
+        }
+
+        setSelectedDevices((prev) => {
+          const next = new Set(prev);
+          droppedActiveIds.forEach((deviceId) => next.delete(deviceId));
+          return next;
+        });
+
+        if (droppedActiveIds.includes(selectedDevice)) {
+          const fallbackOnlineSelected = sortedDevices.find(
+            (device) => selectedDevices.has(device.device_id) && !droppedActiveIds.includes(device.device_id) && device.status === "online"
+          );
+          setSelectedDevice(fallbackOnlineSelected?.device_id ?? "");
+        }
+
+        const remainingOnlineSelectedCount = Array.from(selectedDevices).filter(
+          (deviceId) => !droppedActiveIds.includes(deviceId) && nextById.get(deviceId)?.status === "online"
+        ).length;
+
+        const firstDroppedName = previousById.get(droppedActiveIds[0])?.name ?? droppedActiveIds[0];
+        const stopAllMonitoring = remainingOnlineSelectedCount === 0;
+        if (stopAllMonitoring) {
+          setIsMeasuring(false);
+          setShowConfirmModal(null);
+        }
+        setDeviceSelectionConfirm(null);
+
+        setDisconnectWarning({
+          deviceName: firstDroppedName,
+          stopAllMonitoring,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch devices");
+      }
+    },
+    [
+      devices,
+      isMeasuring,
+      selectedDevice,
+      selectedDevices,
+      setIsMeasuring,
+      setSelectedDevice,
+      setSelectedDevices,
+      setShowConfirmModal,
+    ]
+  );
+
+  // Fetch devices on mount.
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
       .then((devs) => {
         const sortedDevices = sortDevicesByStatus(devs);
         setDevices(sortedDevices);
-        if (sortedDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(sortedDevices[0].device_id);
+        const eligible = sortedDevices.filter((d) => isDeviceEnabledForMode(d.device_id, mode));
+        const onlineEligible = eligible.filter((d) => d.status === "online");
+        const fallback = onlineEligible.length > 0
+          ? onlineEligible
+          : sortedDevices.filter((d) => d.status === "online");
+
+        if (fallback.length > 0 && !selectedDevice) {
+          setSelectedDevice(fallback[0].device_id);
         }
-        // Select all devices for measuring by default
-        setSelectedDevices(new Set(sortedDevices.map(d => d.device_id)));
+
+        // Select all eligible devices for the active mode by default.
+        setSelectedDevices(new Set(fallback.map((d) => d.device_id)));
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setDevicesLoaded(true));
   }, []); // Intentional: fetch device list once on mount only
+
+  useEffect(() => {
+    if (!devicesLoaded) return;
+    const intervalId = setInterval(() => {
+      void refreshDevices();
+    }, 15000);
+    return () => clearInterval(intervalId);
+  }, [devicesLoaded, refreshDevices]);
+
+  // When mode changes, only keep devices assigned to that mode.
+  useEffect(() => {
+    if (!devicesLoaded) return;
+
+    if (eligibleDeviceIdsForMode.length === 0) {
+      setSelectedDevices(new Set());
+      setSelectedDevice("");
+      return;
+    }
+
+    setSelectedDevices((prev) => {
+      const filtered = new Set<string>();
+      for (const id of prev) {
+        if (onlineEligibleDeviceIdsForMode.includes(id)) filtered.add(id);
+      }
+      return filtered;
+    });
+
+    if (!onlineEligibleDeviceIdsForMode.includes(selectedDevice)) {
+      setSelectedDevice(onlineEligibleDeviceIdsForMode[0] ?? "");
+    }
+  }, [devicesLoaded, eligibleDeviceIdsForMode, onlineEligibleDeviceIdsForMode, selectedDevice, setSelectedDevice, setSelectedDevices]);
+
+  // If selected mode has no assigned devices, force-stop measuring and close start confirmation.
+  useEffect(() => {
+    if (!hasNoAssignedDevicesForMode) return;
+    if (isMeasuring) {
+      setIsMeasuring(false);
+    }
+    setShowConfirmModal((prev) => (prev === "start" ? null : prev));
+  }, [hasNoAssignedDevicesForMode, isMeasuring, setIsMeasuring, setShowConfirmModal]);
 
   // Fetch readings when device changes
   const fetchData = useCallback(async () => {
@@ -540,11 +791,19 @@ export default function Dashboard() {
   }, [selectedDevice]);
 
   useEffect(() => {
+    if (!selectedDevice) {
+      setLoading(false);
+      setCurrentReading(null);
+      setRecentReadings([]);
+      setLastUpdate("");
+      return;
+    }
+
     setLoading(true);
     fetchData();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [fetchData]);
+  }, [fetchData, selectedDevice]);
 
   // Track measuring start time
   useEffect(() => {
@@ -728,6 +987,30 @@ export default function Dashboard() {
     { name: "Office arrival preset", detail: "Switch to Office scene at first device wake-up", state: "Active" },
   ];
 
+  const deviceSelectionConfirmText = useMemo(() => {
+    if (!deviceSelectionConfirm) return "";
+
+    if (deviceSelectionConfirm.action === "select") {
+      return `Are you sure you want to start collecting data with "${deviceSelectionConfirm.deviceName}" alongside the other active devices?`;
+    }
+
+    if (deviceSelectionConfirm.action === "deselect_last") {
+      return "This is the last active device currently collecting data. Are you sure you want to stop all monitoring until you manually turn it on again?";
+    }
+
+    return `Are you sure you want to stop "${deviceSelectionConfirm.deviceName}" from collecting data until you manually turn it on again?`;
+  }, [deviceSelectionConfirm]);
+
+  const disconnectWarningText = useMemo(() => {
+    if (!disconnectWarning) return "";
+
+    if (disconnectWarning.stopAllMonitoring) {
+      return `"${disconnectWarning.deviceName}" went offline or entered an error state. It was the last active device, so all monitoring has stopped until you manually start it again.`;
+    }
+
+    return `"${disconnectWarning.deviceName}" just disconnected (offline/error). Remaining active devices will continue collecting data.`;
+  }, [disconnectWarning]);
+
   if (loading && !currentReading) {
     return (
       <div className="dashboard-page">
@@ -774,7 +1057,8 @@ export default function Dashboard() {
               <span className="hero-countdown">{refreshCountdown}s</span>
               <button
                 className="hero-action-btn"
-                onClick={() => setShowConfirmModal(isMeasuring ? "stop" : "start")}
+                onClick={requestMeasureToggle}
+                disabled={isStartBlocked}
               >
                 {isMeasuring ? (
                   <>
@@ -867,6 +1151,19 @@ export default function Dashboard() {
         </div>
       </section>
 
+      {hasNoAssignedDevicesForMode && (
+        <section className="mode-without-device-panel measuring-mode-warning" role="status" aria-live="polite">
+          <p className="mode-without-device-text">{t.mode_without_device_message}</p>
+          <button
+            type="button"
+            className="mode-without-device-action"
+            onClick={() => setFigmaTab("devices")}
+          >
+            {t.mode_without_device_action}
+          </button>
+        </section>
+      )}
+
       {/* Measuring status bar */}
       <section className="measuring-bar">
         <div className="measuring-status">
@@ -890,8 +1187,9 @@ export default function Dashboard() {
           </div>
         </div>
         <button
-          className={`measuring-btn ${isMeasuring ? "stop" : "start"}`}
-          onClick={() => setShowConfirmModal(isMeasuring ? "stop" : "start")}
+          className={`measuring-btn ${isMeasuring ? "stop" : "start"} ${isStartBlocked ? "disabled" : ""}`}
+          onClick={requestMeasureToggle}
+          disabled={isStartBlocked}
         >
           {isMeasuring ? (
             <>
@@ -927,22 +1225,18 @@ export default function Dashboard() {
         {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
           const isChecked = selectedDevices.has(d.device_id);
           const isExpanded = expandedDevice === d.device_id;
+          const isSelectable = d.status === "online";
           return (
             <div key={d.device_id} className="device-expand-row">
               <div className="device-checkbox-item">
                 <input
                   type="checkbox"
                   checked={isChecked}
-                  onChange={() => {
-                    setSelectedDevices((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(d.device_id)) next.delete(d.device_id);
-                      else next.add(d.device_id);
-                      return next;
-                    });
-                    if (!isChecked) setSelectedDevice(d.device_id);
-                  }}
+                  disabled={!isSelectable}
+                  style={isSelectable ? {} : { cursor: "not-allowed" }}
+                  onChange={() => requestDeviceSelectionToggle(d)}
                 />
+                <Cpu size={14} className="device-checkbox-icon" />
                 <span className="device-checkbox-name">{d.name}</span>
                 <span
                   className="device-measuring-dot"
@@ -952,7 +1246,7 @@ export default function Dashboard() {
                         ? "var(--poor)"
                         : d.status === "offline"
                           ? "var(--text-muted)"
-                          : isChecked && isMeasuring
+                          : isChecked
                             ? "var(--good)"
                             : "var(--text-muted)",
                   }}
@@ -982,7 +1276,7 @@ export default function Dashboard() {
                       <span className="device-sensor-hw">{sensor.hw}</span>
                       <span
                         className="sensor-measuring-dot"
-                        style={{ background: d.status === "online" && isChecked && isMeasuring ? "var(--good)" : "var(--text-muted)" }}
+                        style={{ background: d.status === "online" && isChecked ? "var(--good)" : "var(--text-muted)" }}
                       />
                     </label>
                   ))}
@@ -1287,6 +1581,19 @@ export default function Dashboard() {
           <section className="figma-content">
             {figmaTab === "measure" && (
               <>
+                {hasNoAssignedDevicesForMode && (
+                  <div className="mode-without-device-panel figma-mode-warning" role="status" aria-live="polite">
+                    <p className="mode-without-device-text">{t.mode_without_device_message}</p>
+                    <button
+                      type="button"
+                      className="mode-without-device-action"
+                      onClick={() => setFigmaTab("devices")}
+                    >
+                      {t.mode_without_device_action}
+                    </button>
+                  </div>
+                )}
+
                 {/* Measuring status */}
                 <div className="figma-measure-bar">
                   <div className="figma-measure-status">
@@ -1319,8 +1626,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <button
-                    className={`figma-measure-btn ${isMeasuring ? "stop" : "start"}`}
-                    onClick={() => setShowConfirmModal(isMeasuring ? "stop" : "start")}
+                    className={`figma-measure-btn ${isMeasuring ? "stop" : "start"} ${isStartBlocked ? "disabled" : ""}`}
+                    onClick={requestMeasureToggle}
+                    disabled={isStartBlocked}
                   >
                     {isMeasuring ? (
                       <>
@@ -1363,15 +1671,7 @@ export default function Dashboard() {
                           checked={selectedDevices.has(d.device_id)}
                           disabled={!isSelectable}
                           style={isSelectable ? {} : { cursor: "not-allowed" }}
-                          onChange={() => {
-                            if (!isSelectable) return;
-                            setSelectedDevices((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(d.device_id)) next.delete(d.device_id);
-                              else next.add(d.device_id);
-                              return next;
-                            });
-                          }}
+                          onChange={() => requestDeviceSelectionToggle(d)}
                         />
                         <Cpu size={16} className="figma-device-icon-chip" />
                         <span className="figma-device-label">Device:</span>
@@ -1445,6 +1745,39 @@ export default function Dashboard() {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Heart Rate section — desktop */}
+                <div className="figma-hr-row">
+                  <div className="figma-sensor-card" style={{ borderTopColor: "#E11D48" }}>
+                    <div className="figma-sensor-card-content">
+                      <div className="figma-sensor-icon" style={{ color: "#E11D48" }}><Heart size={18} /></div>
+                      <span className="figma-sensor-label">{t.sensor_heart_rate}</span>
+                      {hr.connected && hr.bpm !== null ? (
+                        <span className="figma-sensor-value">{hr.bpm} <small>BPM</small></span>
+                      ) : (
+                        <button
+                          className="btn btn-sm btn-primary figma-hr-connect-btn"
+                          onClick={hr.isSupported ? hr.connect : undefined}
+                          disabled={hr.connecting || !hr.isSupported}
+                        >
+                          <Bluetooth size={14} />
+                          {hr.connecting ? t.hr_connecting : t.hr_connect}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="figma-sensor-card" style={{ borderTopColor: "#EC4899" }}>
+                    <div className="figma-sensor-card-content">
+                      <div className="figma-sensor-icon" style={{ color: "#EC4899" }}><Activity size={18} /></div>
+                      <span className="figma-sensor-label">{t.sensor_hrv}</span>
+                      {hr.connected && hr.rmssd !== null ? (
+                        <span className="figma-sensor-value">{hr.rmssd} <small>ms</small></span>
+                      ) : (
+                        <span className="figma-sensor-value">-- <small>ms</small></span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -1528,89 +1861,59 @@ export default function Dashboard() {
             )}
 
             {figmaTab === "devices" && (
-              <div className="figma-preview-grid figma-preview-devices">
-                <div className="figma-preview-card figma-device-preview-list">
-                  <div className="figma-preview-head">
-                    <div>
-                      <span className="figma-preview-eyebrow">Devices</span>
-                      <h3>Registered units</h3>
-                    </div>
-                    <span className="figma-preview-pill">{devicePreviewCards.length} shown</span>
-                  </div>
-                  <div className="figma-device-preview-stack">
-                    {devicePreviewCards.map((device) => (
-                      <div key={device.device_id} className="figma-device-preview-item">
-                        <div className="figma-device-preview-main">
-                          <div className="figma-device-preview-icon">
-                            <Cpu size={18} />
-                          </div>
-                          <div>
-                            <strong>{device.name}</strong>
-                            <p>{device.location}</p>
-                          </div>
-                        </div>
-                        <span className={`figma-device-status ${device.status === "online" ? "online" : device.status === "error" ? "error" : ""}`}>
-                          {device.status}
-                        </span>
-                        <div className="figma-device-preview-meta">
-                          <span>{device.sync}</span>
-                          <span>{device.battery_v?.toFixed(1) ?? "--"}V</span>
-                        </div>
-                        <div className="figma-device-preview-tags">
-                          {device.sensors.map((sensor) => (
-                            <span key={sensor}>{sensor}</span>
+              <div className="figma-devices-wrapper">
+                <button
+                  className="figma-devices-collapse"
+                  onClick={() => setDevicesExpanded(e => !e)}
+                  aria-label={devicesExpanded ? "Collapse" : "Expand"}
+                >
+                  <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
+                    <ChevronDown size={14} />
+                  </span>
+                </button>
+                <div className={`figma-devices ${!devicesExpanded ? "collapsed" : ""}`}>
+                  {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
+                    const isSelectable = d.status === "online";
+                    return (
+                    <div key={d.device_id} className="figma-device-group">
+                      <div className="figma-device-row">
+                        <Cpu size={16} className="figma-device-icon-chip" />
+                        <span className="figma-device-label">Device:</span>
+                        <span className="figma-device-name">{d.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={selectedDevices.has(d.device_id)}
+                          disabled={!isSelectable}
+                          style={isSelectable ? {} : { cursor: "not-allowed" }}
+                          onChange={() => requestDeviceSelectionToggle(d)}
+                        />
+                        <button
+                          className="figma-device-expand"
+                          onClick={() => setExpandedDevice(expandedDevice === d.device_id ? null : d.device_id)}
+                        >
+                          <ChevronDown size={16} className={`figma-chevron ${expandedDevice === d.device_id ? "open" : ""}`} />
+                        </button>
+                      </div>
+                      {expandedDevice === d.device_id && (
+                        <div className="figma-device-sensors">
+                          {[
+                            { hw: "MH-Z19B (CO2)", color: "#22C55E" },
+                            { hw: "BME280 (Temp)", color: "#3B82F6" },
+                            { hw: "BME280 (Humidity)", color: "#06B6D4" },
+                            { hw: "BME280 (Pressure)", color: "#8B5CF6" },
+                            { hw: "BH1750 (Light)", color: "#F59E0B" },
+                            { hw: "MAX9814 (Noise)", color: "#EF4444" },
+                          ].map(s => (
+                            <div key={s.hw} className="figma-sensor-row">
+                              <span className="figma-sensor-dot" style={{ background: s.color }} />
+                              <span>{s.hw}</span>
+                            </div>
                           ))}
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="figma-preview-card">
-                  <div className="figma-preview-head">
-                    <div>
-                      <span className="figma-preview-eyebrow">Coverage</span>
-                      <h3>Sensor health</h3>
+                      )}
                     </div>
-                  </div>
-                  <div className="figma-health-meters">
-                    {[
-                      { label: "Connectivity", value: 92, color: "#38BDF8" },
-                      { label: "Battery", value: 78, color: "#22C55E" },
-                      { label: "Calibration", value: 64, color: "#F59E0B" },
-                    ].map((meter) => (
-                      <div key={meter.label} className="figma-meter-row">
-                        <div className="figma-meter-label">
-                          <span>{meter.label}</span>
-                          <strong>{meter.value}%</strong>
-                        </div>
-                        <div className="figma-meter-track">
-                          <span style={{ width: `${meter.value}%`, background: meter.color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="figma-preview-card">
-                  <div className="figma-preview-head">
-                    <div>
-                      <span className="figma-preview-eyebrow">Maintenance</span>
-                      <h3>Upcoming tasks</h3>
-                    </div>
-                  </div>
-                  <div className="figma-maintenance-list">
-                    {[
-                      "Replace Office battery within 6 days",
-                      "Run calibration check for Living Room CO2 sensor",
-                      "Reconnect Bedroom gateway after scheduled move",
-                    ].map((task) => (
-                      <div key={task} className="figma-maintenance-item">
-                        <span className="figma-maintenance-dot" />
-                        <span>{task}</span>
-                      </div>
-                    ))}
-                  </div>
+                  );
+                  })}
                 </div>
               </div>
             )}
@@ -1704,7 +2007,9 @@ export default function Dashboard() {
         <div className="modal-overlay" onClick={() => setShowConfirmModal(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">
-              {showConfirmModal === "stop" ? t.confirm_stop : t.confirm_start}
+              {showConfirmModal === "stop"
+                ? "Are you sure you want to stop collecting all data until you turn monitoring on again?"
+                : t.confirm_start}
             </p>
             <div className="modal-actions">
               <button
@@ -1715,12 +2020,52 @@ export default function Dashboard() {
               </button>
               <button
                 className={`btn ${showConfirmModal === "stop" ? "btn-danger" : "btn-primary"}`}
+                disabled={showConfirmModal === "start" && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode)}
                 onClick={() => {
+                  if (showConfirmModal === "start" && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode)) return;
                   setIsMeasuring(showConfirmModal === "start");
                   setShowConfirmModal(null);
                 }}
               >
                 {t.confirm_yes}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deviceSelectionConfirm && (
+        <div className="modal-overlay" onClick={() => setDeviceSelectionConfirm(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-text">{deviceSelectionConfirmText}</p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => setDeviceSelectionConfirm(null)}
+              >
+                {t.confirm_cancel}
+              </button>
+              <button
+                className={`btn ${deviceSelectionConfirm.action === "select" ? "btn-primary" : "btn-danger"}`}
+                onClick={confirmDeviceSelectionToggle}
+              >
+                {t.confirm_yes}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {disconnectWarning && (
+        <div className="modal-overlay" onClick={() => setDisconnectWarning(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <p className="modal-text">{disconnectWarningText}</p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => setDisconnectWarning(null)}
+              >
+                OK
               </button>
             </div>
           </div>

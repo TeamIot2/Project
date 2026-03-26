@@ -41,6 +41,11 @@ export interface Translations {
   sensor_noise: string;
 
   // History
+  time_window: string;
+  custom_time_window: string;
+  time_from: string;
+  time_to: string;
+  graph_style: string;
   individual: string;
   combined: string;
   all_sensors: string;
@@ -103,6 +108,8 @@ export interface Translations {
   confirm_start: string;
   confirm_yes: string;
   confirm_cancel: string;
+  mode_without_device_message: string;
+  mode_without_device_action: string;
 
   // Tips
   tip_ventilate: string;
@@ -157,6 +164,11 @@ const cs: Translations = {
   sensor_light: "Světlo",
   sensor_noise: "Hluk",
 
+  time_window: "Časové okno",
+  custom_time_window: "Vlastní časové okno",
+  time_from: "Od",
+  time_to: "Do",
+  graph_style: "Vizualizace",
   individual: "Jednotlivé",
   combined: "Kombinované",
   all_sensors: "Všechny senzory",
@@ -214,6 +226,8 @@ const cs: Translations = {
   confirm_start: "Spustit sběr dat se všemi vybranými zařízeními?",
   confirm_yes: "Ano",
   confirm_cancel: "Zrušit",
+  mode_without_device_message: "Vybraný režim nemá zatím přiřazené žádné zařízení.",
+  mode_without_device_action: "Vyberte 1",
 
   tip_ventilate: "Doporučujeme vyvětrat místnost",
   tip_temperature: "Teplota je mimo optimální rozsah",
@@ -265,6 +279,11 @@ const en: Translations = {
   sensor_light: "Light",
   sensor_noise: "Noise",
 
+  time_window: "Time Window",
+  custom_time_window: "Custom Time Window",
+  time_from: "From",
+  time_to: "To",
+  graph_style: "Visualization",
   individual: "Individual",
   combined: "Combined",
   all_sensors: "All Sensors",
@@ -322,6 +341,8 @@ const en: Translations = {
   confirm_start: "Start collecting data with all selected devices?",
   confirm_yes: "Yes",
   confirm_cancel: "Cancel",
+  mode_without_device_message: "Selected mode has no assigned devices yet.",
+  mode_without_device_action: "Choose one",
 
   tip_ventilate: "Consider ventilating the room",
   tip_temperature: "Temperature is outside optimal range",

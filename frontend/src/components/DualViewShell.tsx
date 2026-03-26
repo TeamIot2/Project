@@ -28,6 +28,45 @@ export default function DualViewShell({ Content }: DualViewShellProps) {
 
   const isDual = dualViewEnabled && isWideEnough;
 
+  useEffect(() => {
+    if (!isDual) return;
+
+    const syncMobileScrollWithPage = () => {
+      const mobileMainWrapper = document.querySelector<HTMLElement>(".dual-view-shell.dual .mobile-panel .main-wrapper");
+      if (!mobileMainWrapper) return;
+      const pageScrollable = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const mobileScrollable = Math.max(0, mobileMainWrapper.scrollHeight - mobileMainWrapper.clientHeight);
+      if (pageScrollable === 0 || mobileScrollable === 0) {
+        mobileMainWrapper.scrollTop = 0;
+        return;
+      }
+      const ratio = Math.min(1, Math.max(0, window.scrollY / pageScrollable));
+      mobileMainWrapper.scrollTop = ratio * mobileScrollable;
+    };
+
+    const handleMobileWheel = (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const inMobilePanel = target.closest(".dual-view-shell.dual .mobile-panel");
+      if (!inMobilePanel) return;
+      event.preventDefault();
+      window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+    };
+
+    syncMobileScrollWithPage();
+    const raf = requestAnimationFrame(syncMobileScrollWithPage);
+    window.addEventListener("scroll", syncMobileScrollWithPage, { passive: true });
+    window.addEventListener("resize", syncMobileScrollWithPage);
+    document.addEventListener("wheel", handleMobileWheel, { passive: false });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", syncMobileScrollWithPage);
+      window.removeEventListener("resize", syncMobileScrollWithPage);
+      document.removeEventListener("wheel", handleMobileWheel);
+    };
+  }, [isDual]);
+
   if (!isDual) {
     return (
       <div className="dual-view-shell single">

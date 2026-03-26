@@ -15,6 +15,7 @@ build/
 # IDE
 .vscode/
 .idea/
+.run/
 *.swp
 *.swo
 *~
@@ -33,3 +34,6 @@ frontend/public/images/generate_assets.py
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Internal project status (not for repo)
+docs/project_status.md
