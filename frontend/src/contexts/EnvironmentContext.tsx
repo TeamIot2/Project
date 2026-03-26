@@ -10,6 +10,7 @@ interface EnvironmentState {
   mode: EnvironmentMode;
   presets: EnvironmentPreset[];
   loading: boolean;
+  error: string | null;
   setEnvironment: (mode: EnvironmentMode) => void;
   getQuality: (metricKey: string, value: number) => Quality;
   currentPreset: EnvironmentPreset | null;
@@ -27,13 +28,19 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
   const [mode, setMode] = useState<EnvironmentMode>("office");
   const [presets, setPresets] = useState<EnvironmentPreset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch environment presets from API
   useEffect(() => {
     apiGet<EnvironmentPreset[]>("/environments")
-      .then(setPresets)
+      .then((data) => {
+        setPresets(data);
+        setError(null);
+      })
       .catch((err) => {
         console.error("Failed to fetch environment presets:", err);
+        const message = err instanceof Error ? err.message : "Failed to load environment presets";
+        setError(message);
         // Use sensible fallback presets if API unavailable
         setPresets(fallbackPresets);
       })
@@ -65,6 +72,7 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
         mode,
         presets,
         loading,
+        error,
         setEnvironment: setMode,
         getQuality,
         currentPreset,

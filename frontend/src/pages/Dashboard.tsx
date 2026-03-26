@@ -20,8 +20,9 @@ import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
 import { apiGet } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
-import type { EnvironmentalReading, DeviceInfo, MetricConfig } from "../types";
+import type { EnvironmentalReading, DeviceInfo } from "../types";
 import type { Translations } from "../i18n/translations";
+import { METRICS as metrics, METRIC_COLORS as sensorColors, SENSOR_LABEL_KEYS as sensorLabelKeys } from "../constants/chartColors";
 import {
   Droplets,
   Thermometer,
@@ -43,113 +44,9 @@ import {
   Co2Molecule,
 } from "../components/Icons";
 import type { EnvironmentMode } from "../types";
+import EnvironmentCarousel from "../components/EnvironmentCarousel";
 
-/**
- * Mobile environment strip.
- * Horizontal scroll with one highlighted active card.
- */
-function EnvironmentCarousel({
-  environments,
-  activeId,
-  onSelect,
-  overlayStyle = false,
-}: {
-  environments: { id: EnvironmentMode; img: string; label: string; icon?: typeof Wind }[];
-  activeId: EnvironmentMode;
-  onSelect: (id: EnvironmentMode) => void;
-  overlayStyle?: boolean;
-}) {
-  const activeIndex = environments.findIndex((e) => e.id === activeId);
-
-  function navigate(direction: number) {
-    const len = environments.length;
-    const nextIndex = ((activeIndex + direction) % len + len) % len;
-    onSelect(environments[nextIndex].id);
-  }
-
-  return (
-    <section className="env-carousel">
-      <button className="env-carousel-arrow left" onClick={() => navigate(-1)} aria-label="Previous">
-        â€ą
-      </button>
-      <div className="env-carousel-track">
-        {environments.map((env, i) => {
-          const len = environments.length;
-          let diff = i - activeIndex;
-          if (diff > len / 2) diff -= len;
-          if (diff < -len / 2) diff += len;
-          const absDiff = Math.abs(diff);
-          const isActive = diff === 0;
-          const Icon = env.icon;
-
-          return (
-            <button
-              key={env.id}
-              className={`env-card ${isActive ? "active" : ""}`}
-              data-env={env.id}
-              onClick={() => onSelect(env.id)}
-              style={{
-                transform: `translateX(${diff * (overlayStyle ? 100 : 75)}%) scale(1)`,
-                opacity: absDiff <= 1 ? 1 : 0,
-                zIndex: 10 - absDiff,
-              }}
-            >
-              <img src={env.img} alt={env.label} className="env-card-img" />
-              {overlayStyle && Icon ? (
-                <>
-                  <div className="env-card-overlay" />
-                  <div className="env-card-copy">
-                    <Icon size={isActive ? 29 : 24} className="env-card-icon" />
-                    <span className="env-card-label">{env.label}</span>
-                  </div>
-                </>
-              ) : (
-                <span className="env-card-label">{env.label}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-      <button className="env-carousel-arrow right" onClick={() => navigate(1)} aria-label="Next">
-        â€ş
-      </button>
-    </section>
-  );
-}
-
-// Resolved color values for sensor card left borders (CSS vars don't work inline for border)
-const sensorColors: Record<string, string> = {
-  co2_ppm: "#22C55E",
-  temperature_c: "#3B82F6",
-  humidity_pct: "#06B6D4",
-  pressure_hpa: "#8B5CF6",
-  light_lux: "#F59E0B",
-  noise_adc: "#EF4444",
-  heart_rate_bpm: "#E11D48",
-  hrv_rmssd_ms: "#EC4899",
-};
-
-// Translation keys for sensor labels
-const sensorLabelKeys: Record<string, keyof Translations> = {
-  co2_ppm: "sensor_co2",
-  temperature_c: "sensor_temperature",
-  humidity_pct: "sensor_humidity",
-  pressure_hpa: "sensor_pressure",
-  light_lux: "sensor_light",
-  noise_adc: "sensor_noise",
-  heart_rate_bpm: "sensor_heart_rate",
-  hrv_rmssd_ms: "sensor_hrv",
-};
-
-// Sensor metric configurations
-const metrics: MetricConfig[] = [
-  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "var(--chart-co2)", icon: "co2molecule", decimals: 0, chartDomain: [300, 1500] },
-  { key: "temperature_c", label: "Temperature", unit: "Â°C", color: "var(--chart-temp)", icon: "thermometer", decimals: 1, chartDomain: [15, 35] },
-  { key: "humidity_pct", label: "Humidity", unit: "%", color: "var(--chart-humidity)", icon: "droplets", decimals: 1, chartDomain: [20, 80] },
-  { key: "pressure_hpa", label: "Pressure", unit: "hPa", color: "var(--chart-pressure)", icon: "wind", decimals: 0, chartDomain: [960, 1060] },
-  { key: "light_lux", label: "Light", unit: "lux", color: "var(--chart-light)", icon: "sun", decimals: 0, chartDomain: [0, 1000] },
-  { key: "noise_adc", label: "Noise", unit: "ADC", color: "var(--chart-noise)", icon: "volume", decimals: 0, chartDomain: [0, 1024] },
-];
+// sensorColors, sensorLabelKeys, and metrics are imported from constants/chartColors.ts
 
 // Map icon names to components
 const iconMap: Record<string, typeof Wind> = {
@@ -160,6 +57,7 @@ const iconMap: Record<string, typeof Wind> = {
   volume: Volume2,
   heart: Heart,
   co2molecule: Co2Molecule,
+  gauge: Activity,
 };
 
 /**
@@ -1467,6 +1365,25 @@ export default function Dashboard() {
         ) : hr.connected ? (
           <p className="text-muted" style={{ fontSize: "0.8125rem" }}>{t.hr_connecting}</p>
         ) : null}
+
+        {hr.isSupported && (!hr.connected || hr.bpm === null) && (
+          <div className="hr-mobile-hrv-card">
+            <article className="sensor-card" style={{ borderLeft: "4px solid #EC4899" }}>
+              <div className="sensor-card-header">
+                <div className="sensor-icon" style={{ color: "#EC4899" }}>
+                  <Activity size={20} />
+                </div>
+              </div>
+              <div className="sensor-card-body">
+                <span className="sensor-label">{t.sensor_hrv} (RMSSD)</span>
+                <div className="sensor-value">
+                  <span className="value-number">{hr.connected && hr.rmssd !== null ? hr.rmssd : "--"}</span>
+                  <span className="value-unit">ms</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        )}
 
         {hr.error && (
           <p className="text-muted" style={{ fontSize: "0.75rem", color: "var(--poor)", marginTop: "0.5rem" }}>{hr.error}</p>

@@ -36,18 +36,18 @@
   --info: #3B82F6;
   --danger: #EF4444;
 
-  --env-sleep: #8B5CF6;
-  --env-sleep-bg: #EDE9FE;
-  --env-sleep-border: #C4B5FD;
-  --env-office: #FACC15;
-  --env-office-bg: #FEFCE8;
-  --env-office-border: #FDE68A;
-  --env-sport: #A16207;
-  --env-sport-bg: #FEF3C7;
-  --env-sport-border: #CA8A04;
-  --env-outdoor: #22C55E;
-  --env-outdoor-bg: #DCFCE7;
-  --env-outdoor-border: #86EFAC;
+  --env-sleep: #7C3AED;
+  --env-sleep-bg: #DDD6FE;
+  --env-sleep-border: #A78BFA;
+  --env-office: #0EA5E9;
+  --env-office-bg: #BAE6FD;
+  --env-office-border: #38BDF8;
+  --env-sport: #EA580C;
+  --env-sport-bg: #FED7AA;
+  --env-sport-border: #F97316;
+  --env-outdoor: #15803D;
+  --env-outdoor-bg: #BBF7D0;
+  --env-outdoor-border: #4ADE80;
 
   --chart-co2: #22C55E;
   --chart-temp: #3B82F6;
@@ -87,10 +87,10 @@
 
   --env-sleep-bg: #2E1065;
   --env-sleep-border: #6D28D9;
-  --env-office-bg: #422006;
-  --env-office-border: #A16207;
-  --env-sport-bg: #422006;
-  --env-sport-border: #854D0E;
+  --env-office-bg: #0C4A6E;
+  --env-office-border: #0284C7;
+  --env-sport-bg: #431407;
+  --env-sport-border: #C2410C;
   --env-outdoor-bg: #052E16;
   --env-outdoor-border: #15803D;
 }
@@ -734,29 +734,17 @@ img {
   background: var(--bg-secondary);
 }
 
-/* Inactive pills: light colored background with colored text */
-.env-pill.env-sleep {
-  background: var(--env-sleep-bg);
-  color: var(--env-sleep);
-  border-color: var(--env-sleep-border);
-}
-
-.env-pill.env-office {
-  background: var(--env-office-bg);
-  color: var(--env-office);
-  border-color: var(--env-office-border);
-}
-
-.env-pill.env-sport {
-  background: var(--env-sport-bg);
-  color: var(--env-sport);
-  border-color: var(--env-sport-border);
-}
-
-.env-pill.env-outdoor {
-  background: var(--env-outdoor-bg);
-  color: var(--env-outdoor);
-  border-color: var(--env-outdoor-border);
+/* Inactive pills: neutral background, subtle border */
+.env-pill.env-sleep,
+.env-pill.env-office,
+.env-pill.env-sport,
+.env-pill.env-outdoor,
+.env-pill.env-school,
+.env-pill.env-factory,
+.env-pill.env-greenhouse {
+  background: var(--surface-alt);
+  color: var(--text-secondary);
+  border-color: var(--border-light);
 }
 
 /* Active pills: SOLID colored background with white text */
@@ -769,16 +757,16 @@ img {
 
 .env-pill.active.env-office {
   background: var(--env-office);
-  color: #1E293B;
+  color: #FFFFFF;
   border-color: var(--env-office);
-  box-shadow: 0 2px 8px rgba(250,204,21,0.4);
+  box-shadow: 0 2px 8px rgba(56,189,248,0.4);
 }
 
 .env-pill.active.env-sport {
   background: var(--env-sport);
   color: #FFFFFF;
   border-color: var(--env-sport);
-  box-shadow: 0 2px 8px rgba(161,98,7,0.35);
+  box-shadow: 0 2px 8px rgba(249,115,22,0.35);
 }
 
 .env-pill.active.env-outdoor {
@@ -788,6 +776,27 @@ img {
   box-shadow: 0 2px 8px rgba(34,197,94,0.3);
 }
 
+.env-pill.active.env-school {
+  background: #CA8A04;
+  color: #FFFFFF;
+  border-color: #CA8A04;
+  box-shadow: 0 2px 8px rgba(202,138,4,0.4);
+}
+
+.env-pill.active.env-factory {
+  background: #6B7280;
+  color: #FFFFFF;
+  border-color: #6B7280;
+  box-shadow: 0 2px 8px rgba(107,114,128,0.35);
+}
+
+.env-pill.active.env-greenhouse {
+  background: #16A34A;
+  color: #FFFFFF;
+  border-color: #16A34A;
+  box-shadow: 0 2px 8px rgba(22,163,74,0.35);
+}
+
 /* Dark desktop only: use icon color for header env-pill borders */
 @container app-panel (min-width: 960px) {
   [data-theme="dark"] .app-header .env-pill {
@@ -795,33 +804,18 @@ img {
   }
 }
 
-/* Desktop env pills â€” centered, desaturated grayscale */
+/* Desktop env pills â€” centered, keep same colors as mobile */
 @container app-panel (min-width: 960px) {
   .env-selector {
     position: absolute;
     left: 50cqi;
     transform: translateX(-50%);
   }
-  .env-pill.env-sleep,
-  .env-pill.env-sport,
-  .env-pill.env-outdoor {
-    background: rgba(0, 0, 0, 0.04);
-    color: #64748B;
-    border-color: rgba(0, 0, 0, 0.12);
-  }
-  .env-pill.active.env-sleep,
-  .env-pill.active.env-sport,
-  .env-pill.active.env-outdoor {
-    background: #334155;
-    color: #fff;
-    border-color: #334155;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  }
   .env-carousel-arrow.left { left: 32px; }
   .env-carousel-arrow.right { right: 32px; }
 }
 
-/* Env pills â€” always icon-only circles, hide office pill */
+/* Env pills — always icon-only circles */
 .env-pill span {
   display: none;
 }
@@ -831,9 +825,6 @@ img {
   padding: 0;
   justify-content: center;
   border-radius: 50%;
-}
-.env-pill.env-office {
-  display: none;
 }
 .env-selector {
   gap: 0.5rem;
@@ -1597,6 +1588,53 @@ img {
 }
 
 @container app-panel (max-width: 959px) {
+  .history-page {
+    --history-mobile-main-pad: 1rem;
+  }
+
+  html[data-style="16"] .history-page {
+    --history-mobile-main-pad: 0.875rem;
+  }
+
+  .history-page .charts-grid > .card.chart-card,
+  .history-page > .card.chart-card.combined-chart {
+    margin-inline: calc(var(--history-mobile-main-pad) * -1);
+    width: calc(100% + (var(--history-mobile-main-pad) * 2));
+    max-width: none;
+    padding: 0.75rem 0 0.6rem;
+  }
+
+  .history-page .charts-grid > .card.chart-card > .chart-title,
+  .history-page > .card.chart-card.combined-chart > .chart-title,
+  .history-page > .card.chart-card.combined-chart > .text-secondary {
+    padding-inline: 0.875rem;
+  }
+
+  .history-page .charts-grid > .card.chart-card > .recharts-responsive-container,
+  .history-page > .card.chart-card.combined-chart > .recharts-responsive-container {
+    width: 100% !important;
+  }
+
+  .history-page .history-mobile-y-axis-labels {
+    padding-inline: 0.875rem;
+  }
+
+  .history-range-row .time-range-selector {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: clamp(0.2rem, 1.2vw, 0.45rem);
+    width: 100%;
+    padding-inline: clamp(0.25rem, 1vw, 0.45rem);
+    justify-items: stretch;
+  }
+
+  .history-range-row .time-range-selector .time-pill {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
   .history-options {
     width: 100%;
   }
@@ -1643,6 +1681,22 @@ img {
   grid-column: 1 / -1;
 }
 
+.history-mobile-y-axis-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  padding: 0 0.875rem 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.history-mobile-y-axis-labels--range {
+  justify-content: flex-start;
+}
+
 /* ===================================================================
    DEVICES PAGE
    =================================================================== */
@@ -1674,15 +1728,15 @@ img {
 .device-card-wrapper {
   overflow: hidden;
   background: var(--surface) !important;
-  border-radius: var(--radius) !important;
+  border-radius: 0 !important;
   box-shadow: var(--shadow) !important;
-  border: 1px solid var(--border-light) !important;
+  border: 1px solid #111827 !important;
   padding: 0.25rem;
 }
 
 [data-theme="dark"] .device-card-wrapper {
   background: var(--surface) !important;
-  border-color: var(--border-light) !important;
+  border-color: #111827 !important;
   box-shadow: var(--shadow) !important;
 }
 
@@ -2002,6 +2056,14 @@ html .devices-page .device-rename-confirm {
 [data-theme="dark"] .device-rename-confirm {
   border: 2px solid #6B7280 !important;
   color: #F0EBE5 !important;
+}
+
+[data-theme="dark"] .device-rename-confirm:disabled,
+[data-theme="dark"] .device-rename-row .device-rename-confirm.btn.btn-outline:disabled {
+  color: #E5E7EB !important;
+  border-color: #94A3B8 !important;
+  background: rgba(148, 163, 184, 0.12) !important;
+  opacity: 1 !important;
 }
 
 .device-mode-row {
@@ -3248,9 +3310,19 @@ html[data-style="16"] .env-card.active .env-card-label {
   gap: 1rem;
 }
 
+.hr-mobile-hrv-card {
+  display: none;
+}
+
 @container app-panel (max-width: 639px) {
   .hr-cards {
     grid-template-columns: 1fr;
+  }
+}
+
+@container app-panel (max-width: 959px) {
+  .hr-mobile-hrv-card {
+    display: block;
   }
 }
 
@@ -5175,15 +5247,15 @@ html[data-style="16"] .env-card.active .env-card-label {
   /* Device card wrappers — match history-devices style in desktop cockpit */
   [data-theme="light"] .device-card-wrapper {
     background: var(--surface) !important;
-    border: 1px solid var(--border-light) !important;
-    border-radius: var(--radius) !important;
+    border: 1px solid #111827 !important;
+    border-radius: 0 !important;
     box-shadow: var(--shadow) !important;
   }
 
   [data-theme="dark"] .device-card-wrapper {
     background: var(--surface) !important;
-    border: 1px solid var(--border-light) !important;
-    border-radius: var(--radius) !important;
+    border: 1px solid #111827 !important;
+    border-radius: 0 !important;
     box-shadow: var(--shadow) !important;
   }
 
@@ -6086,8 +6158,8 @@ html[data-style="16"] .env-card.active .env-card-label {
   html[data-style] .device-icon { background: var(--skin-surface) !important; color: var(--skin-text-secondary) !important; }
 
   /* Device card wrappers — override skin for individual device panels */
-  [data-theme="light"] html[data-style] .device-card-wrapper.card { background: var(--skin-surface) !important; border: 1px solid var(--skin-border) !important; border-radius: var(--skin-radius) !important; box-shadow: var(--shadow) !important; }
-  [data-theme="dark"] html[data-style] .device-card-wrapper.card { background: var(--skin-surface) !important; border: 1px solid var(--skin-border) !important; border-radius: var(--skin-radius) !important; box-shadow: var(--shadow) !important; }
+  [data-theme="light"] html[data-style] .device-card-wrapper.card { background: var(--skin-surface) !important; border: 1px solid #111827 !important; border-radius: 0 !important; box-shadow: var(--shadow) !important; }
+  [data-theme="dark"] html[data-style] .device-card-wrapper.card { background: var(--skin-surface) !important; border: 1px solid #111827 !important; border-radius: 0 !important; box-shadow: var(--shadow) !important; }
 
   /* Settings page */
   html[data-style] .settings-section { background: var(--skin-surface) !important; border-color: var(--skin-border) !important; border-radius: var(--skin-radius) !important; }
@@ -6348,6 +6420,13 @@ html[data-style="16"] .env-card.active .env-card-label {
     color: #1E293B !important;
   }
 
+  /* Keep Office header pill color aligned with Office carousel border. */
+  [data-style="16"] .env-pill.active.env-office {
+    background: #1478A8 !important;
+    border-color: #1478A8 !important;
+    box-shadow: 0 2px 8px rgba(20, 120, 168, 0.45) !important;
+  }
+
   /* Header alignment â€” match figma content width (820px) */
   .app-header {
     padding-left: max(2rem, calc((100cqi - 820px) / 2)) !important;
@@ -6493,13 +6572,13 @@ html[data-style="16"] .env-card.active .env-card-label {
   [data-theme="dark"][data-style="16"] .figma-tab.active {
     color: var(--text-primary) !important;
     background: var(--surface) !important;
-    border-color: color-mix(in srgb, var(--skin-accent, #3B82F6) 40%, var(--surface)) !important;
+    border-color: color-mix(in srgb, var(--figma-accent, #FDE68A) 40%, var(--surface)) !important;
     border-bottom-color: transparent !important;
   }
 
   [data-theme="dark"][data-style="16"] .figma-content {
     background: color-mix(in srgb, var(--surface) 86%, transparent) !important;
-    border-color: color-mix(in srgb, var(--skin-accent, #3B82F6) 38%, var(--surface)) !important;
+    border-color: color-mix(in srgb, var(--figma-accent, #FDE68A) 38%, var(--surface)) !important;
   }
 
   [data-theme="dark"][data-style="16"] .figma-measure-bar,
@@ -8445,7 +8524,6 @@ html[data-style="16"] .env-card.active .env-card-label {
 
   [data-theme="light"] .device-sensor-item {
     background: #F9FAFB !important;
-    border-color: #E5E7EB !important;
   }
 
   [data-theme="light"] .device-sensor-label {
@@ -8556,6 +8634,11 @@ html[data-style="16"] .env-card.active .env-card-label {
    =================================================================== */
 .settings-page {
   max-width: 920px;
+}
+
+.settings-page .settings-section.card {
+  border: 1px solid #111827 !important;
+  border-radius: 0 !important;
 }
 
 .page-header {
@@ -8730,6 +8813,51 @@ html[data-style="16"] .env-card.active .env-card-label {
   padding: 0.14rem 0.48rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.mode-card-badge-fav {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #FEF3C7;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(180, 120, 20, 0.92);
+  border: 1px solid rgba(160, 100, 10, 0.9);
+  padding: 0.14rem 0.48rem;
+  border-radius: 999px;
+}
+
+.mode-editor-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mode-editor-title-row .mode-editor-title {
+  margin: 0;
+}
+
+.mode-fav-btn {
+  flex-shrink: 0;
+  font-size: 0.6875rem !important;
+  padding: 0.5rem 0.625rem !important;
+  white-space: nowrap;
+}
+
+.env-pill-placeholder {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--border, rgba(0, 0, 0, 0.12));
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.35;
 }
 
 .mode-card.mode-card-create {
@@ -9043,7 +9171,7 @@ html[data-style="16"] .env-card.active .env-card-label {
   background: #EF4444 !important;
   color: #FFFFFF !important;
   border: none !important;
-  width: min(320px, 88vw);
+  width: clamp(160px, 50vw, 220px);
   padding: 0.625rem 1.5rem !important;
   font-size: 0.9375rem !important;
   font-weight: 600 !important;
@@ -9656,7 +9784,7 @@ html[data-style] .devices-connect-modal {
   }
 
   [data-theme="dark"][data-style="16"] .figma-desktop {
-    --figma-dark-frame-border: color-mix(in srgb, var(--skin-accent, #3B82F6) 24%, #9BA3B5);
+    --figma-dark-frame-border: color-mix(in srgb, var(--figma-accent, #FDE68A) 48%, #A7B0C0);
     --figma-tab-join-fill: rgb(62, 68, 80);
     --figma-tab-join-overlap: 2px;
   }
@@ -9727,5 +9855,155 @@ html[data-style] .devices-connect-modal {
   [data-theme="dark"][data-style="16"] .figma-sensor-quality.poor {
     color: #FCA5A5 !important;
     background: rgba(239, 68, 68, 0.22) !important;
+  }
+}
+
+@container app-panel (min-width: 960px) {
+  .app-header,
+  [data-theme="dark"] .app-header,
+  html[data-style] .app-header,
+  [data-style="16"] .app-header,
+  [data-theme="dark"][data-style="16"] .app-header {
+    background: var(--surface) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  [data-theme="light"] .app-header,
+  [data-theme="light"][data-style] .app-header,
+  [data-theme="light"][data-style="16"] .app-header {
+    background: #FFFFFF !important;
+  }
+}
+
+@container app-panel (min-width: 960px) {
+  .devices-page .device-disconnect-btn.btn.btn-outline.btn-danger {
+    background: #EF4444 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #EF4444 !important;
+  }
+
+  .devices-page .device-disconnect-btn.btn.btn-outline.btn-danger:hover {
+    background: #DC2626 !important;
+    border-color: #DC2626 !important;
+    color: #FFFFFF !important;
+  }
+}
+
+/* ===========================================================================
+   HEADER USER DROPDOWN FIXES
+   Keep menu readable (opaque) and always above carousel arrows/content
+   =========================================================================== */
+.app-header {
+  z-index: 120 !important;
+}
+
+.app-header .header-right {
+  position: relative;
+  z-index: 121;
+}
+
+.app-header .user-dropdown {
+  background: #FFFFFF !important;
+  border: 1px solid #D7DFEA !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22), 0 3px 10px rgba(15, 23, 42, 0.12) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+  z-index: 130 !important;
+}
+
+[data-theme="light"] .app-header .dropdown-name {
+  color: #2D2A26 !important;
+}
+
+[data-theme="light"] .app-header .dropdown-email {
+  color: #6B6560 !important;
+}
+
+[data-theme="light"] .app-header .dropdown-divider {
+  border-top-color: #E5DDD5 !important;
+}
+
+[data-theme="light"] .app-header .dropdown-item {
+  color: #2D2A26 !important;
+}
+
+[data-theme="light"] .app-header .dropdown-item:hover {
+  background: #F5F7FB !important;
+  color: #1E293B !important;
+}
+
+[data-theme="dark"] .app-header .user-dropdown {
+  background: #2A2825 !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.56), 0 5px 14px rgba(0, 0, 0, 0.38) !important;
+}
+
+[data-theme="dark"] .app-header .dropdown-name {
+  color: #F0EBE5 !important;
+}
+
+[data-theme="dark"] .app-header .dropdown-email {
+  color: #A09890 !important;
+}
+
+[data-theme="dark"] .app-header .dropdown-divider {
+  border-top-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .app-header .dropdown-item {
+  color: #D7D2CB !important;
+}
+
+[data-theme="dark"] .app-header .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+}
+
+@container app-panel (min-width: 960px) {
+  html[data-style][data-theme="light"] .app-header .user-dropdown,
+  html[data-style] [data-theme="light"] .app-header .user-dropdown {
+    background: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    background-image: none !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html[data-style][data-theme="light"] .app-header .dropdown-name,
+  html[data-style] [data-theme="light"] .app-header .dropdown-name {
+    color: #2D2A26 !important;
+  }
+
+  html[data-style][data-theme="light"] .app-header .dropdown-email,
+  html[data-style] [data-theme="light"] .app-header .dropdown-email {
+    color: #6B6560 !important;
+  }
+
+  html[data-style][data-theme="light"] .app-header .dropdown-divider,
+  html[data-style] [data-theme="light"] .app-header .dropdown-divider {
+    border-top-color: #E5DDD5 !important;
+  }
+
+  html[data-style][data-theme="light"] .app-header .dropdown-item,
+  html[data-style] [data-theme="light"] .app-header .dropdown-item {
+    color: #2D2A26 !important;
+  }
+
+  html[data-style][data-theme="light"] .app-header .dropdown-item:hover,
+  html[data-style] [data-theme="light"] .app-header .dropdown-item:hover {
+    background: #F5F7FB !important;
+    color: #1E293B !important;
+  }
+
+  html[data-style][data-theme="dark"] .app-header .user-dropdown,
+  html[data-style] [data-theme="dark"] .app-header .user-dropdown {
+    background: #2A2825 !important;
+    background-image: none !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }

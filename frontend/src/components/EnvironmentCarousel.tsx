@@ -20,7 +20,10 @@ export default function EnvironmentCarousel({
   onSelect: (id: EnvironmentMode) => void;
   overlayStyle?: boolean;
 }) {
-  const activeIndex = environments.findIndex((e) => e.id === activeId);
+  if (environments.length === 0) return null;
+
+  const rawIndex = environments.findIndex((e) => e.id === activeId);
+  const activeIndex = rawIndex === -1 ? 0 : rawIndex;
 
   function navigate(direction: number) {
     const len = environments.length;

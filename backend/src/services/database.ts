@@ -206,6 +206,7 @@ export function queryReadings(options: {
 
   const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
   let limit = options.limit ?? 500;
+  if (limit < 1) limit = 1;
   if (limit > 2000) limit = 2000;
 
   const sql = `SELECT * FROM readings ${where} ORDER BY timestamp DESC LIMIT ?`;
@@ -317,18 +318,25 @@ function round1(n: number): number {
   return parseFloat(n.toFixed(1));
 }
 
+/** Safely coerce a database value to a number, defaulting to 0 with a warning. */
+function safeNumber(value: unknown, fieldName: string): number {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  console.warn(`[DB] rowToReading: field "${fieldName}" is not a valid number (got ${typeof value}: ${value}), defaulting to 0`);
+  return 0;
+}
+
 function rowToReading(row: Record<string, unknown>): EnvironmentalReading {
   return {
     device_id: row.device_id as string,
     timestamp: row.timestamp as string,
-    co2_ppm: row.co2_ppm as number,
-    temperature_c: row.temperature_c as number,
-    humidity_pct: row.humidity_pct as number,
-    pressure_hpa: row.pressure_hpa as number,
-    light_lux: row.light_lux as number,
-    sound_level_adc: row.sound_level_adc as number,
-    sound_peak_adc: row.sound_peak_adc as number,
-    sound_rms_adc: row.sound_rms_adc as number,
+    co2_ppm: safeNumber(row.co2_ppm, "co2_ppm"),
+    temperature_c: safeNumber(row.temperature_c, "temperature_c"),
+    humidity_pct: safeNumber(row.humidity_pct, "humidity_pct"),
+    pressure_hpa: safeNumber(row.pressure_hpa, "pressure_hpa"),
+    light_lux: safeNumber(row.light_lux, "light_lux"),
+    sound_level_adc: safeNumber(row.sound_level_adc, "sound_level_adc"),
+    sound_peak_adc: safeNumber(row.sound_peak_adc, "sound_peak_adc"),
+    sound_rms_adc: safeNumber(row.sound_rms_adc, "sound_rms_adc"),
     sound_event: (row.sound_event as number) === 1,
     battery_v: row.battery_v as number | undefined,
     gateway_id: row.gateway_id as string | undefined,

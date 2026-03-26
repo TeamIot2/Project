@@ -21,6 +21,7 @@ function icon(paths: React.ReactNode, fill?: boolean) {
         strokeLinecap="round"
         strokeLinejoin="round"
         className={className}
+        aria-hidden="true"
       >
         {paths}
       </svg>

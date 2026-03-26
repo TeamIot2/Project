@@ -15,6 +15,8 @@ router.use(authenticateToken);
 
 // GET /api/devices — empty for User2 (usr-4), full for everyone else
 router.get("/", (req: Request, res: Response) => {
+  // Demo user with no assigned devices — used for testing empty state UX.
+  // Returns an empty array so the frontend can exercise its "no data" paths.
   if (req.user?.id === "usr-4") {
     res.json([]);
     return;

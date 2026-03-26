@@ -105,7 +105,7 @@ SDNN = sqrt( (1/(N-1)) * SUM( (RR[i] - RR_mean)^2 ) )
 
 **Limitation:** iOS users need a native app wrapper (Capacitor BLE plugin).
 
-## Integration in PLACEHOLDERname
+## Integration in Team2App
 
 - Connected via Web Bluetooth API in the browser
 - Standard Heart Rate Service (`0x180D`), no proprietary SDK needed

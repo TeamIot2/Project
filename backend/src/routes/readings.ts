@@ -36,14 +36,36 @@ router.post("/ingest", (req: Request, res: Response) => {
     return;
   }
 
-  const accepted = insertReadings(readings);
+  // Field-level validation: each reading must have required fields with correct types
+  const requiredFields: { key: string; type: string }[] = [
+    { key: "device_id", type: "string" },
+    { key: "timestamp", type: "string" },
+    { key: "co2_ppm", type: "number" },
+    { key: "temperature_c", type: "number" },
+    { key: "humidity_pct", type: "number" },
+    { key: "pressure_hpa", type: "number" },
+    { key: "light_lux", type: "number" },
+    { key: "sound_level_adc", type: "number" },
+  ];
+
+  const validReadings = readings.filter((r: Record<string, unknown>) => {
+    if (typeof r !== "object" || r === null) return false;
+    return requiredFields.every(
+      ({ key, type }) => key in r && typeof r[key] === type
+    );
+  });
+
+  const rejected = readings.length - validReadings.length;
+
+  const accepted = validReadings.length > 0 ? insertReadings(validReadings) : 0;
 
   console.log(
-    `[Ingest] gateway=${gateway_id} seq=${sequence} accepted=${accepted} sent_at=${sent_at}`
+    `[Ingest] gateway=${gateway_id} seq=${sequence} accepted=${accepted} rejected=${rejected} sent_at=${sent_at}`
   );
 
   res.status(201).json({
     accepted,
+    rejected,
     sequence,
     timestamp: new Date().toISOString(),
   });
@@ -55,6 +77,8 @@ router.use(authenticateToken);
 
 // GET /api/readings — empty for User2 (usr-4)
 router.get("/", (req: Request, res: Response) => {
+  // Demo user with no assigned devices — used for testing empty state UX.
+  // Returns an empty array so the frontend can exercise its "no data" paths.
   if (req.user?.id === "usr-4") { res.json([]); return; }
 
   const deviceId = req.query.device_id as string | undefined;
@@ -63,6 +87,16 @@ router.get("/", (req: Request, res: Response) => {
   const limitParam = req.query.limit
     ? parseInt(req.query.limit as string, 10)
     : undefined;
+
+  // Validate from/to are valid ISO date strings if provided
+  if (from && isNaN(new Date(from).getTime())) {
+    res.status(400).json({ error: "Invalid 'from' date format. Expected ISO 8601 string." });
+    return;
+  }
+  if (to && isNaN(new Date(to).getTime())) {
+    res.status(400).json({ error: "Invalid 'to' date format. Expected ISO 8601 string." });
+    return;
+  }
 
   const readings = queryReadings({
     deviceId,

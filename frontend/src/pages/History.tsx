@@ -15,56 +15,23 @@ import { apiGet } from "../api";
 import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
-import type { EnvironmentalReading, DeviceInfo, MetricConfig, EnvironmentMode } from "../types";
+import type { EnvironmentalReading, DeviceInfo, EnvironmentMode } from "../types";
 import { ChevronDown, Cpu, Wind, Thermometer, Droplets, Sun, Volume2, Activity, Co2Molecule, Moon, Briefcase } from "../components/Icons";
-import type { Translations } from "../i18n/translations";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
+import { formatLocalDate, formatLocalTime } from "../utils/dateTime";
 import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
 import EnvironmentCarousel from "../components/EnvironmentCarousel";
 import { usePanelType } from "../components/DualViewShell";
-
-// Chart metric configurations
-const metrics: MetricConfig[] = [
-  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "var(--chart-co2)", icon: "wind", decimals: 0, chartDomain: [300, 1500] },
-  { key: "temperature_c", label: "Temperature", unit: "°C", color: "var(--chart-temp)", icon: "thermometer", decimals: 1, chartDomain: [15, 35] },
-  { key: "humidity_pct", label: "Humidity", unit: "%", color: "var(--chart-humidity)", icon: "droplets", decimals: 1, chartDomain: [20, 80] },
-  { key: "pressure_hpa", label: "Pressure", unit: "hPa", color: "var(--chart-pressure)", icon: "gauge", decimals: 0, chartDomain: [960, 1060] },
-  { key: "light_lux", label: "Light", unit: "lux", color: "var(--chart-light)", icon: "sun", decimals: 0, chartDomain: [0, 1000] },
-  { key: "noise_adc", label: "Noise", unit: "ADC", color: "var(--chart-noise)", icon: "volume", decimals: 0, chartDomain: [0, 1024] },
-];
-
-// Translation keys for sensor labels
-const sensorLabelKeys: Record<string, keyof Translations> = {
-  co2_ppm: "sensor_co2",
-  temperature_c: "sensor_temperature",
-  humidity_pct: "sensor_humidity",
-  pressure_hpa: "sensor_pressure",
-  light_lux: "sensor_light",
-  noise_adc: "sensor_noise",
-};
-
-// Resolve CSS variables to actual colors for Recharts
-const colorMap: Record<string, string> = {
-  "var(--chart-co2)": "#22C55E",
-  "var(--chart-temp)": "#3B82F6",
-  "var(--chart-humidity)": "#06B6D4",
-  "var(--chart-pressure)": "#8B5CF6",
-  "var(--chart-light)": "#F59E0B",
-  "var(--chart-noise)": "#EF4444",
-};
-
-function resolveColor(cssVar: string): string {
-  return colorMap[cssVar] ?? cssVar;
-}
+import { METRICS as metrics, SENSOR_LABEL_KEYS as sensorLabelKeys, resolveColor } from "../constants/chartColors";
 
 const sensorIconMap: Record<string, typeof Wind> = {
+  co2molecule: Co2Molecule,
   wind: Co2Molecule,
   thermometer: Thermometer,
   droplets: Droplets,
   sun: Sun,
   volume: Volume2,
   gauge: Activity,
-  co2molecule: Co2Molecule,
 };
 
 // Ideal values per environment mode - deviation is measured from these
@@ -97,6 +64,16 @@ const timeRanges = [
   { label: "1m", hours: 720 },
   { label: "1y", hours: 8760 },
 ];
+
+const carouselModeLabels: Record<EnvironmentMode, string> = {
+  sleep: "Sleep",
+  office: "Office",
+  sport: "Gym",
+  outdoor: "Outside",
+  school: "School",
+  factory: "Factory",
+  greenhouse: "Greenhouse",
+};
 
 // Generate mock data so charts always have something to show
 function generateMockData(hours: number): Array<Record<string, unknown>> {
@@ -134,17 +111,33 @@ function getDownsampleStep(hours: number): number {
   return 30;
 }
 
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function normalizeAxisDomain(min: number, max: number): [number, number] {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 100];
+  if (min === max) return [min - 1, max + 1];
+  return [min, max];
 }
 
-function formatLocalTime(date: Date): string {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+function formatAxisValue(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1000) return Math.round(value).toString();
+  if (abs >= 100) return value.toFixed(0);
+  if (abs >= 10) return value.toFixed(1).replace(/\.0$/, "");
+  return value.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+function buildRangeLabel(min: number, max: number, suffix = ""): string {
+  const [safeMin, safeMax] = normalizeAxisDomain(min, max);
+  const suffixPart = suffix ? ` ${suffix}` : "";
+  return `${formatAxisValue(safeMin)} - ${formatAxisValue(safeMax)}${suffixPart}`;
+}
+
+function formatMetricNumber(value: number, decimals: number): string {
+  if (!Number.isFinite(value)) return "--";
+  if (decimals <= 0) return Math.round(value).toString();
+  return value
+    .toFixed(decimals)
+    .replace(/\.0+$/, "")
+    .replace(/(\.\d*?)0+$/, "$1");
 }
 
 type ChartMode = "individual" | "combined" | "deviation";
@@ -168,6 +161,7 @@ export default function History() {
   const [readings, setReadings] = useState<EnvironmentalReading[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
 
   // Theme-aware chart colors
   const gridColor = theme === "dark" ? "#3D3A37" : "#F0EBE5";
@@ -206,6 +200,28 @@ export default function History() {
       hours: Math.max(1, (toDate.getTime() - fromDate.getTime()) / 3600000),
     };
   }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime]);
+
+  // Show user-visible error when the custom date range is invalid
+  useEffect(() => {
+    if (!customRangeActive) {
+      setRangeError(null);
+      return;
+    }
+    if (!intervalStartDate || !intervalStartTime || !intervalEndDate || !intervalEndTime) {
+      setRangeError(null);
+      return;
+    }
+    const fromDate = new Date(`${intervalStartDate}T${intervalStartTime}`);
+    const toDate = new Date(`${intervalEndDate}T${intervalEndTime}`);
+
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      setRangeError(t.invalid_date_values);
+    } else if (fromDate >= toDate) {
+      setRangeError(t.invalid_date_range);
+    } else {
+      setRangeError(null);
+    }
+  }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime, t]);
 
   const effectiveRangeHours = customRangeActive && customInterval ? customInterval.hours : selectedRange;
 
@@ -289,6 +305,44 @@ export default function History() {
     });
   }, [displayData, chartData, deviationData, mode]);
 
+  const selectedMetricConfigs = useMemo(
+    () => metrics.filter((metric) => selectedSensors.has(metric.key)),
+    [selectedSensors]
+  );
+
+  const metricConfigByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        metrics.map((metric) => [metric.key, metric] as const)
+      ) as Record<string, (typeof metrics)[number]>,
+    []
+  );
+
+  function formatCombinedTooltipValue(metricKey: string, value: number): string {
+    const metric = metricConfigByKey[metricKey];
+    const decimals = metric?.decimals ?? (Number.isInteger(value) ? 0 : 1);
+    const formattedValue = formatMetricNumber(value, decimals);
+    return metric?.unit ? `${formattedValue} ${metric.unit}` : formattedValue;
+  }
+
+  const combinedMobileDomain = useMemo<[number, number]>(() => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+
+    for (const point of displayData) {
+      for (const metric of selectedMetricConfigs) {
+        const value = point[metric.key as keyof typeof point];
+        if (typeof value !== "number" || Number.isNaN(value)) continue;
+        if (value < min) min = value;
+        if (value > max) max = value;
+      }
+    }
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 100];
+    const [safeMin, safeMax] = normalizeAxisDomain(min, max);
+    return [Math.floor(safeMin), Math.ceil(safeMax)];
+  }, [displayData, selectedMetricConfigs]);
+
   const xInterval = Math.max(1, Math.floor(displayData.length / 8));
 
   const tooltipStyle = {
@@ -301,14 +355,22 @@ export default function History() {
 
   // Environment carousel definitions for mobile
   const isMobile = panelType === "mobile" || panelType === "single";
+  const individualChartHeight = isMobile ? 132 : 220;
+  const aggregateChartHeight = isMobile ? 240 : 400;
+  const mobileDeviationRangeLabel = "0 - 100 %";
+  const chartMargin = isMobile
+    ? { top: 4, right: 10, left: 10, bottom: 0 }
+    : { top: 4, right: 0, left: 0, bottom: 0 };
+  const xAxisPadding = isMobile ? { left: 12, right: 12 } : { left: 0, right: 0 };
+  const xAxisTickFontSize = isMobile ? 10 : 11;
   const carouselEnvs = [
-    { id: "sleep" as const, img: "/images/silent/silent_06_bedroom.png", label: t.env_sleep, icon: Moon },
-    { id: "office" as const, img: "/images/silent/silent_07_office.png", label: t.env_office, icon: Briefcase },
-    { id: "sport" as const, img: "/images/silent/silent_02_gym.png", label: t.env_sport, icon: Activity },
-    { id: "outdoor" as const, img: "/images/silent/silent_03_nature.png", label: t.env_outdoor, icon: Wind },
-    { id: "school" as const, img: "/images/silent/silent_01_classroom.png", label: t.env_school, icon: Briefcase },
-    { id: "factory" as const, img: "/images/silent/silent_08_factory.png", label: t.env_factory, icon: Activity },
-    { id: "greenhouse" as const, img: "/images/silent/silent_04_greenhouse.png", label: t.env_greenhouse, icon: Sun },
+    { id: "sleep" as const, img: "/images/silent/silent_06_bedroom.png", label: carouselModeLabels.sleep, icon: Moon },
+    { id: "office" as const, img: "/images/silent/silent_07_office.png", label: carouselModeLabels.office, icon: Briefcase },
+    { id: "sport" as const, img: "/images/silent/silent_02_gym.png", label: carouselModeLabels.sport, icon: Activity },
+    { id: "outdoor" as const, img: "/images/silent/silent_03_nature.png", label: carouselModeLabels.outdoor, icon: Wind },
+    { id: "school" as const, img: "/images/silent/silent_01_classroom.png", label: carouselModeLabels.school, icon: Briefcase },
+    { id: "factory" as const, img: "/images/silent/silent_08_factory.png", label: carouselModeLabels.factory, icon: Activity },
+    { id: "greenhouse" as const, img: "/images/silent/silent_04_greenhouse.png", label: carouselModeLabels.greenhouse, icon: Sun },
   ];
 
   return (
@@ -406,6 +468,12 @@ export default function History() {
             />
           </div>
         </div>
+        {/* Range error — desktop (shown between desktop & mobile sections) */}
+        {rangeError && customRangeActive && (
+          <p className="history-range-error" role="alert" style={{ color: "var(--color-danger, #EF4444)", fontSize: "0.8125rem", margin: "0.25rem 0 0" }}>
+            {rangeError}
+          </p>
+        )}
         {/* Mobile: From/To layout */}
         <div className="history-interval-mobile">
           <button
@@ -447,6 +515,7 @@ export default function History() {
                 type="checkbox"
                 checked={selectedDevice === d.device_id}
                 onChange={() => setSelectedDevice(selectedDevice === d.device_id ? "" : d.device_id)}
+                aria-label={`Select device ${d.name}`}
               />
               <button
                 className="figma-device-expand"
@@ -463,6 +532,7 @@ export default function History() {
                   return (
                     <label key={m.key} className="history-sensor-item">
                       <input
+                        id={`sensor-${d.device_id}-${m.key}`}
                         type="checkbox"
                         className={selectedDevice !== d.device_id && selectedSensors.has(m.key) ? "checkbox-gray" : ""}
                         checked={selectedSensors.has(m.key)}
@@ -529,17 +599,36 @@ export default function History() {
       ) : chartMode === "individual" ? (
         // Individual area charts - vivid solid fills, filtered by selectedSensors
         <div className="charts-grid">
-          {metrics.filter((m) => selectedSensors.has(m.key)).map((metric) => {
+          {selectedMetricConfigs.map((metric) => {
             const color = resolveColor(metric.color);
             const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
+            const metricDomain = (() => {
+              if (metric.chartDomain) return metric.chartDomain;
+
+              let min = Number.POSITIVE_INFINITY;
+              let max = Number.NEGATIVE_INFINITY;
+              for (const point of displayData) {
+                const value = point[metric.key as keyof typeof point];
+                if (typeof value !== "number" || Number.isNaN(value)) continue;
+                if (value < min) min = value;
+                if (value > max) max = value;
+              }
+              return normalizeAxisDomain(min, max);
+            })();
+            const individualMobileRangeLabel = buildRangeLabel(metricDomain[0], metricDomain[1]);
 
             return (
               <div key={metric.key} className="card chart-card">
                 <h3 className="chart-title">
                   {translatedLabel} ({metric.unit})
                 </h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={displayData}>
+                {isMobile && (
+                  <div className="history-mobile-y-axis-labels history-mobile-y-axis-labels--range" aria-hidden="true">
+                    <span>{individualMobileRangeLabel}</span>
+                  </div>
+                )}
+                <ResponsiveContainer width="100%" height={individualChartHeight}>
+                  <AreaChart data={displayData} margin={chartMargin}>
                     <defs>
                       <linearGradient id={`gradient-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity={0.7} />
@@ -547,8 +636,23 @@ export default function History() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: axisColor }} interval={xInterval} stroke={gridColor} />
-                    <YAxis tick={{ fontSize: 11, fill: axisColor }} domain={metric.chartDomain ?? ["auto", "auto"]} stroke={gridColor} width={50} />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: xAxisTickFontSize, fill: axisColor }}
+                      interval={xInterval}
+                      stroke={gridColor}
+                      padding={xAxisPadding}
+                      tickMargin={isMobile ? 8 : 6}
+                      minTickGap={isMobile ? 16 : 10}
+                    />
+                    <YAxis
+                      tick={isMobile ? false : { fontSize: 11, fill: axisColor }}
+                      domain={metricDomain}
+                      stroke={gridColor}
+                      width={isMobile ? 0 : 50}
+                      axisLine={!isMobile}
+                      tickLine={!isMobile}
+                    />
                     <Tooltip contentStyle={tooltipStyle} />
                     <Area
                       type="monotone"
@@ -570,10 +674,10 @@ export default function History() {
         // Combined area chart - vivid stacked, filtered by selectedSensors
         <div className="card chart-card combined-chart">
           <h3 className="chart-title">{t.all_sensors}</h3>
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={displayData}>
+          <ResponsiveContainer width="100%" height={aggregateChartHeight}>
+            <AreaChart data={displayData} margin={chartMargin}>
               <defs>
-                {metrics.filter((m) => selectedSensors.has(m.key)).map((metric) => {
+                {selectedMetricConfigs.map((metric) => {
                   const color = resolveColor(metric.color);
                   return (
                     <linearGradient key={metric.key} id={`gradient-combined-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -584,12 +688,42 @@ export default function History() {
                 })}
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="time" tick={{ fontSize: 11, fill: axisColor }} interval={xInterval} stroke={gridColor} />
-              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: axisColor }} stroke={gridColor} width={50} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: axisColor }} stroke={gridColor} width={50} />
-              <Tooltip contentStyle={tooltipStyle} />
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: xAxisTickFontSize, fill: axisColor }}
+                interval={xInterval}
+                stroke={gridColor}
+                padding={xAxisPadding}
+                tickMargin={isMobile ? 8 : 6}
+                minTickGap={isMobile ? 16 : 10}
+              />
+              {isMobile ? (
+                <YAxis
+                  tick={false}
+                  stroke={gridColor}
+                  width={0}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={combinedMobileDomain}
+                />
+              ) : (
+                <>
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: axisColor }} stroke={gridColor} width={50} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: axisColor }} stroke={gridColor} width={50} />
+                </>
+              )}
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(value, name, item) => {
+                  if (typeof value !== "number" || Number.isNaN(value)) {
+                    return [String(value ?? "--"), name];
+                  }
+                  const metricKey = String(item?.dataKey ?? "");
+                  return [formatCombinedTooltipValue(metricKey, value), name];
+                }}
+              />
               <Legend />
-              {metrics.filter((m) => selectedSensors.has(m.key)).map((metric, i) => {
+              {selectedMetricConfigs.map((metric, i) => {
                 const color = resolveColor(metric.color);
                 const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
                 return (
@@ -603,7 +737,7 @@ export default function History() {
                     fillOpacity={0.8}
                     dot={false}
                     name={translatedLabel}
-                    yAxisId={i < 3 ? "left" : "right"}
+                    yAxisId={isMobile ? undefined : (i < 3 ? "left" : "right")}
                   />
                 );
               })}
@@ -617,8 +751,13 @@ export default function History() {
           <p className="text-secondary" style={{ fontSize: "0.8125rem", marginBottom: "0.75rem" }}>
             {t.deviation_desc}
           </p>
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={displayDeviationData}>
+          {isMobile && (
+            <div className="history-mobile-y-axis-labels history-mobile-y-axis-labels--range" aria-hidden="true">
+              <span>{mobileDeviationRangeLabel}</span>
+            </div>
+          )}
+          <ResponsiveContainer width="100%" height={aggregateChartHeight}>
+            <AreaChart data={displayDeviationData} margin={chartMargin}>
               <defs>
                 {/* Stacked gradient from green (bottom, good) to red (top, bad) */}
                 <linearGradient id="deviation-bg" x1="0" y1="1" x2="0" y2="0">
@@ -626,7 +765,7 @@ export default function History() {
                   <stop offset="50%" stopColor="#F59E0B" stopOpacity={0.1} />
                   <stop offset="100%" stopColor="#EF4444" stopOpacity={0.15} />
                 </linearGradient>
-                {metrics.filter((m) => selectedSensors.has(m.key)).map((metric) => {
+                {selectedMetricConfigs.map((metric) => {
                   const color = resolveColor(metric.color);
                   return (
                     <linearGradient key={metric.key} id={`deviation-${metric.key}`} x1="0" y1="1" x2="0" y2="0">
@@ -639,11 +778,21 @@ export default function History() {
               {/* Background gradient zone */}
               <rect x="0" y="0" width="100%" height="100%" fill="url(#deviation-bg)" />
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="time" tick={{ fontSize: 11, fill: axisColor }} interval={xInterval} stroke={gridColor} />
-              <YAxis
-                tick={{ fontSize: 11, fill: axisColor }}
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: xAxisTickFontSize, fill: axisColor }}
+                interval={xInterval}
                 stroke={gridColor}
-                width={50}
+                padding={xAxisPadding}
+                tickMargin={isMobile ? 8 : 6}
+                minTickGap={isMobile ? 16 : 10}
+              />
+              <YAxis
+                tick={isMobile ? false : { fontSize: 11, fill: axisColor }}
+                stroke={gridColor}
+                width={isMobile ? 0 : 50}
+                axisLine={!isMobile}
+                tickLine={!isMobile}
                 domain={[0, 100]}
                 tickFormatter={(v: number) => `${v}%`}
               />
@@ -652,7 +801,7 @@ export default function History() {
                 formatter={(value, name) => [`${value ?? 0}%`, name]}
               />
               <Legend />
-              {metrics.filter((m) => selectedSensors.has(m.key)).map((metric) => {
+              {selectedMetricConfigs.map((metric) => {
                 const color = resolveColor(metric.color);
                 const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
                 return (
@@ -677,4 +826,3 @@ export default function History() {
     </div>
   );
 }
-

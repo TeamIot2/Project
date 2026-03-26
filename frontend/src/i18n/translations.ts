@@ -1,4 +1,4 @@
-// Czech and English translations for PLACEHOLDERname
+// Czech and English translations for Team2App
 
 export type Locale = "cs" | "en";
 
@@ -63,6 +63,18 @@ export interface Translations {
   last_seen: string;
   ago: string;
   firmware: string;
+  disconnect_device: string;
+  connect_new_device: string;
+  connect_new_device_subtitle: string;
+  device_name_label: string;
+  device_name_placeholder: string;
+  device_name_required: string;
+  connect_ready: string;
+  location_label: string;
+  location_placeholder: string;
+  connection_type_label: string;
+  close: string;
+  connect: string;
 
   // Settings
   settings_title: string;
@@ -90,6 +102,7 @@ export interface Translations {
   password_placeholder: string;
   env_monitoring: string;
   login_error: string;
+  instant_login: string;
 
   // Heart Rate
   sensor_heart_rate: string;
@@ -123,10 +136,23 @@ export interface Translations {
   trend_falling: string;
   trend_stable: string;
 
+  // Validation
+  invalid_date_range: string;
+  invalid_date_values: string;
+  avatar_too_large: string;
+  avatar_invalid_type: string;
+
+  // Favorites
+  add_to_favorites: string;
+  remove_from_favorites: string;
+  favorites_limit: string;
+  favorite: string;
+
   // Common
   loading: string;
   error: string;
   loading_dashboard: string;
+  storage_error: string;
 }
 
 const cs: Translations = {
@@ -185,6 +211,18 @@ const cs: Translations = {
   last_seen: "Naposledy viděno",
   ago: "před",
   firmware: "FW",
+  disconnect_device: "Odpojit zařízení",
+  connect_new_device: "Připojit nové zařízení",
+  connect_new_device_subtitle: "Vytvořte připojovací profil nového senzoru.",
+  device_name_label: "Název zařízení",
+  device_name_placeholder: "např. Třída 2A",
+  device_name_required: "Vyplňte název zařízení.",
+  connect_ready: "Připojení nového zařízení je připraveno (demo flow).",
+  location_label: "Místo",
+  location_placeholder: "např. 2. patro",
+  connection_type_label: "Typ připojení",
+  close: "Zavřít",
+  connect: "Připojit",
 
   settings_title: "Nastavení",
   profile: "Profil",
@@ -210,6 +248,7 @@ const cs: Translations = {
   password_placeholder: "Zadejte heslo",
   env_monitoring: "Monitorování prostředí",
   login_error: "Nesprávný email nebo heslo",
+  instant_login: "Přihlásit okamžitě",
 
   sensor_heart_rate: "Tep",
   sensor_hrv: "Variabilita tepu",
@@ -239,9 +278,20 @@ const cs: Translations = {
   trend_falling: "Klesá",
   trend_stable: "Stabilní",
 
+  invalid_date_range: "Počáteční datum musí být před koncovým datem.",
+  invalid_date_values: "Zadané datum nebo čas jsou neplatné.",
+  avatar_too_large: "Obrázek je příliš velký (max 5 MB).",
+  avatar_invalid_type: "Soubor musí být obrázek.",
+
+  add_to_favorites: "Přidat do oblíbených",
+  remove_from_favorites: "Odebrat z oblíbených",
+  favorites_limit: "Limit dosažen (3/3)",
+  favorite: "Oblíbené",
+
   loading: "Načítání...",
   error: "Chyba",
   loading_dashboard: "Načítání přehledu...",
+  storage_error: "Uložení se nezdařilo.",
 };
 
 const en: Translations = {
@@ -300,6 +350,18 @@ const en: Translations = {
   last_seen: "Last seen",
   ago: "ago",
   firmware: "FW",
+  disconnect_device: "Disconnect device",
+  connect_new_device: "Connect new device",
+  connect_new_device_subtitle: "Create a new sensor connection profile.",
+  device_name_label: "Device name",
+  device_name_placeholder: "e.g. Office sensor",
+  device_name_required: "Enter a device name.",
+  connect_ready: "New device connect flow is ready (demo mode).",
+  location_label: "Location",
+  location_placeholder: "e.g. 2nd floor",
+  connection_type_label: "Connection type",
+  close: "Close",
+  connect: "Connect",
 
   settings_title: "Settings",
   profile: "Profile",
@@ -325,6 +387,7 @@ const en: Translations = {
   password_placeholder: "Enter your password",
   env_monitoring: "Environmental Monitoring",
   login_error: "Invalid email or password",
+  instant_login: "Instant Login",
 
   sensor_heart_rate: "Heart Rate",
   sensor_hrv: "Heart Rate Variability",
@@ -354,9 +417,20 @@ const en: Translations = {
   trend_falling: "Falling",
   trend_stable: "Stable",
 
+  invalid_date_range: "Start date must be before end date.",
+  invalid_date_values: "The entered date or time is invalid.",
+  avatar_too_large: "Image is too large (max 5 MB).",
+  avatar_invalid_type: "File must be an image.",
+
+  add_to_favorites: "Add to favorites",
+  remove_from_favorites: "Remove from favorites",
+  favorites_limit: "Limit reached (3/3)",
+  favorite: "Favorite",
+
   loading: "Loading...",
   error: "Error",
   loading_dashboard: "Loading dashboard...",
+  storage_error: "Saving failed.",
 };
 
 export const translations: Record<Locale, Translations> = { cs, en };

@@ -103,7 +103,7 @@ export function ProtectedRoute() {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
-        <p>Loading...</p>
+        <p>{document.documentElement.lang === "cs" ? "Načítání..." : "Loading..."}</p>
       </div>
     );
   }

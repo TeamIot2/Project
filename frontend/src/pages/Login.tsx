@@ -77,7 +77,7 @@ export default function Login() {
       <div className="login-card">
         <div className="login-header">
           <span className="login-brand-icon">IoT</span>
-          <h1 className="login-title">PLACEHOLDERname</h1>
+          <h1 className="login-title">Team2App</h1>
           <p className="login-subtitle">{t.env_monitoring}</p>
         </div>
 
@@ -131,21 +131,23 @@ export default function Login() {
             <span>or</span>
           </div>
 
-          <button
-            type="button"
-            className="btn btn-outline login-btn"
-            onClick={async () => {
-              setError("");
-              try {
-                await login("admin@example.com", "admin123");
-                navigate("/", { replace: true });
-              } catch {
-                setError(t.login_error);
-              }
-            }}
-          >
-            PŘIHLÁSIT OKAMŽITĚ
-          </button>
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              className="btn btn-outline login-btn"
+              onClick={async () => {
+                setError("");
+                try {
+                  await login("admin@example.com", "admin123");
+                  navigate("/", { replace: true });
+                } catch {
+                  setError(t.login_error);
+                }
+              }}
+            >
+              {t.instant_login}
+            </button>
+          )}
 
           <button
             type="button"

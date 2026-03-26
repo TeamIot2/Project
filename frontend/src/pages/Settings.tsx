@@ -1,6 +1,6 @@
 ﻿// Settings page: profile, preferences, unified evaluation modes, thresholds, security
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
@@ -132,13 +132,13 @@ export default function Settings() {
     newModeName, setNewModeName,
     expandedModeId, setExpandedModeId,
     avatarPreview, handleAvatarChange, removeAvatar, avatarInputRef,
+    toggleFavoriteMode, isFavorite,
   } = useSettingsState();
 
   const [newModeImage, setNewModeImage] = useState<string>(CREATE_MODE_IMAGE_OPTIONS[0]);
   const [modeThresholdDrafts, setModeThresholdDrafts] = useState<ModeThresholdDrafts>({});
   const [modeSettingsMessage, setModeSettingsMessage] = useState<string | null>(null);
   const [showDisableCriticalAlertsModal, setShowDisableCriticalAlertsModal] = useState(false);
-  const [disableAlertsModalAnchor, setDisableAlertsModalAnchor] = useState<{ x: number; y: number } | null>(null);
 
   const defaultThresholdTemplate = useMemo(() => {
     if (presets.length === 0) return {};
@@ -200,7 +200,7 @@ export default function Settings() {
     pressure_hpa: `${t.sensor_pressure} (hPa)`,
     light_lux: `${t.sensor_light} (lux)`,
     noise_adc: `${t.sensor_noise} (ADC)`,
-    sound_level_adc: "sound_level_adc (db)",
+    sound_level_adc: `${t.sensor_noise} (ADC)`,
   };
 
   const displayName = fullName.trim() || user?.name || (isCs ? "Neznamy uzivatel" : "Unknown user");
@@ -248,23 +248,9 @@ export default function Settings() {
 
   function closeDisableCriticalAlertsModal() {
     setShowDisableCriticalAlertsModal(false);
-    setDisableAlertsModalAnchor(null);
   }
 
-  function openDisableCriticalAlertsModal(event: MouseEvent<HTMLButtonElement>) {
-    const wrapper = event.currentTarget.closest(".main-wrapper") as HTMLElement | null;
-    const viewportPadding = 20;
-
-    if (wrapper) {
-      const rect = wrapper.getBoundingClientRect();
-      const x = Math.min(window.innerWidth - viewportPadding, Math.max(viewportPadding, rect.left + rect.width / 2));
-      const y = Math.min(window.innerHeight - viewportPadding, Math.max(viewportPadding, rect.top + rect.height / 2));
-      setDisableAlertsModalAnchor({ x, y });
-      setShowDisableCriticalAlertsModal(true);
-      return;
-    }
-
-    setDisableAlertsModalAnchor({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  function openDisableCriticalAlertsModal() {
     setShowDisableCriticalAlertsModal(true);
   }
 
@@ -403,7 +389,7 @@ export default function Settings() {
       [modeId]: thresholdsToPoints(sourceThresholds),
     }));
     setModeSettingsMessage(
-      isCs ? "Hodnoty reĹľimu byly resetovĂˇny na vĂ˝chozĂ­." : "Mode values were reset to defaults."
+      isCs ? "Hodnoty režimu byly resetovány na výchozí." : "Mode values were reset to defaults."
     );
   }
 
@@ -425,7 +411,7 @@ export default function Settings() {
         ...prev,
         {
           id: newCustomModeId,
-          name: newModeName.trim(),
+          name: newModeName.trim().slice(0, 50),
           description: isCs ? "Uzivatelsky vytvoreny vyhodnocovaci rezim." : "User-created evaluation mode.",
           bgImage: newModeImage,
           focusMetric: "co2_ppm",
@@ -454,6 +440,7 @@ export default function Settings() {
         );
       } catch {
         // Keep local state even if localStorage is unavailable.
+        setModeSettingsMessage(t.storage_error);
       }
 
       setExpandedModeId(newCustomModeId);
@@ -474,25 +461,23 @@ export default function Settings() {
         })
       );
       setModeSettingsMessage(
-        isCs ? "Hodnoty reĹľimu byly uloĹľeny lokĂˇlnÄ›." : "Mode values were saved locally."
+        isCs ? "Hodnoty režimu byly uloženy lokálně." : "Mode values were saved locally."
       );
     } catch {
-      setModeSettingsMessage(
-        isCs ? "UloĹľenĂ­ se nepodaĹ™ilo." : "Saving failed."
-      );
+      setModeSettingsMessage(t.storage_error);
     }
   }
 
   return (
     <div className="settings-page">
       <div className="page-header">
-        <h1>{isCs ? "VyhodnocovacĂ­ reĹľimy" : "Evaluation modes"}</h1>
+        <h1>{isCs ? "Vyhodnocovací režimy" : "Evaluation modes"}</h1>
       </div>
 
       <section className="card settings-section">
         <p className="text-secondary" style={{ marginBottom: "0.75rem" }}>
           {isCs
-            ? "KliknÄ›te na kartu reĹľimu. Pod nĂ­ se rozbalĂ­ jeho individuĂˇlnĂ­ nastavenĂ­ a prahy, kterĂ© mĹŻĹľete upravit."
+            ? "Klikněte na kartu režimu. Pod ní se rozbalí jeho individuální nastavení a prahy, které můžete upravit."
             : "Click a mode card to expand its individual settings and thresholds, then edit its values."}
         </p>
         <div className="modes-grid">
@@ -508,7 +493,8 @@ export default function Settings() {
               >
                 <span className="mode-card-name">{card.label}</span>
                 <span className="mode-card-desc">{card.desc}</span>
-                {isExpanded && <span className="mode-card-badge">{isCs ? "Ăšprava" : "Editing"}</span>}
+                {isFavorite(card.id) && <span className="mode-card-badge-fav">{t.favorite}</span>}
+                {isExpanded && <span className="mode-card-badge">{isCs ? "Úprava" : "Editing"}</span>}
               </button>
             );
           })}
@@ -517,11 +503,30 @@ export default function Settings() {
         {expandedModeId && expandedDraft && (
           <div className="mode-editor-panel">
             <div className="mode-editor-head">
-              <h3 className="mode-editor-title">
-                {isCs
-                  ? `NastavenĂ­ reĹľimu: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`
-                  : `Mode settings: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`}
-              </h3>
+              <div className="mode-editor-title-row">
+                <h3 className="mode-editor-title">
+                  {isCs
+                    ? `Nastavení režimu: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`
+                    : `Mode settings: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`}
+                </h3>
+                {expandedModeId !== CREATE_MODE_ID && (
+                  isFavorite(expandedModeId) ? (
+                    <button
+                      className="btn btn-outline btn-sm mode-fav-btn"
+                      onClick={() => toggleFavoriteMode(expandedModeId)}
+                    >
+                      {t.remove_from_favorites}
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary btn-sm mode-fav-btn"
+                      onClick={() => toggleFavoriteMode(expandedModeId)}
+                    >
+                      {t.add_to_favorites}
+                    </button>
+                  )
+                )}
+              </div>
               <p className="mode-editor-description">
                 {activeExpandedCard?.desc ?? (isCs ? "Upravte hodnoty podle vasich potreb." : "Adjust values to match your needs.")}
               </p>
@@ -534,7 +539,8 @@ export default function Settings() {
                   <input
                     className="form-input"
                     value={newModeName}
-                    onChange={(event) => setNewModeName(event.target.value)}
+                    maxLength={50}
+                    onChange={(event) => setNewModeName(event.target.value.slice(0, 50))}
                     placeholder={isCs ? "napr. Focus Plus" : "e.g. Focus Plus"}
                   />
                 </div>
@@ -603,10 +609,10 @@ export default function Settings() {
 
             <div className="mode-editor-actions">
               <button className="btn btn-primary btn-sm mode-editor-action-btn" onClick={() => saveModeEditor(expandedModeId)}>
-                {isCs ? "UloĹľit hodnoty" : "Save values"}
+                {isCs ? "Uložit hodnoty" : "Save values"}
               </button>
               <button className="btn btn-outline btn-sm mode-editor-action-btn" onClick={() => resetModeEditor(expandedModeId)}>
-                {isCs ? "Resetovat reĹľim" : "Reset mode"}
+                {isCs ? "Resetovat režim" : "Reset mode"}
               </button>
               {modeSettingsMessage && <p className="mode-editor-note">{modeSettingsMessage}</p>}
             </div>
@@ -616,7 +622,7 @@ export default function Settings() {
       </section>
 
       <div className="page-header settings-group-header">
-        <h1>{isCs ? "UĹľivatelskĂ˝ profil" : "User profile"}</h1>
+        <h1>{isCs ? "Uživatelský profil" : "User profile"}</h1>
       </div>
 
       <section className="card settings-section">
@@ -687,7 +693,7 @@ export default function Settings() {
           <button className="btn btn-primary" onClick={saveProfile}>
             {isCs ? "Ulozit profil" : "Save profile"}
           </button>
-          {profileMessage && <p className="settings-inline-message">{profileMessage}</p>}
+          {profileMessage && <p className="settings-inline-message">{(t as Record<string, string>)[profileMessage] ?? profileMessage}</p>}
         </div>
       </section>
 
@@ -817,11 +823,7 @@ export default function Settings() {
       {showDisableCriticalAlertsModal && (
         <div className="modal-overlay" onClick={closeDisableCriticalAlertsModal}>
           <div
-            className="modal-card settings-alert-confirm-modal settings-alert-confirm-modal-positioned"
-            style={disableAlertsModalAnchor ? {
-              left: `${disableAlertsModalAnchor.x}px`,
-              top: `${disableAlertsModalAnchor.y}px`,
-            } : undefined}
+            className="modal-card settings-alert-confirm-modal"
             onClick={(event) => event.stopPropagation()}
           >
             <p className="modal-text">

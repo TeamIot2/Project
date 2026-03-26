@@ -17,6 +17,7 @@ interface MockUserRecord {
   password: string;
 }
 
+// DEV ONLY — these mock users are for development/demo. Replace with real auth in production.
 const MOCK_USERS: MockUserRecord[] = [
   {
     user: {

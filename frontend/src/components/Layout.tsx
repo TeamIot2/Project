@@ -8,6 +8,7 @@ import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useDualViewPreference } from "../contexts/DualViewPreferenceContext";
 import { useVisualStyle } from "../contexts/StyleContext";
+import { useSettingsState } from "../contexts/SettingsStateContext";
 import { DUAL_VIEW_MEDIA_QUERY } from "../constants/dualView";
 import { usePanelType } from "./DualViewShell";
 import { Home, BarChart2, Cpu, Settings, Moon, Sun, Briefcase, Activity, LogOut, ChevronDown, Globe, Tree, GraduationCap, Factory, Sprout } from "./Icons";
@@ -34,6 +35,17 @@ function getEnvModes(t: Translations): { id: EnvironmentMode; icon: typeof Moon;
   ];
 }
 
+// Icon lookup for all known modes (preset + custom fallback)
+const modeIconMap: Record<string, typeof Moon> = {
+  sleep: Moon,
+  office: Briefcase,
+  sport: Activity,
+  outdoor: Tree,
+  school: GraduationCap,
+  factory: Factory,
+  greenhouse: Sprout,
+};
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const { mode, setEnvironment } = useEnvironment();
@@ -41,6 +53,7 @@ export default function Layout() {
   const { locale, t, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { dualViewEnabled, setDualViewEnabled } = useDualViewPreference();
+  const { favoriteModes } = useSettingsState();
   const panelType = usePanelType();
   const location = useLocation();
   const navigate = useNavigate();
@@ -151,7 +164,7 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="brand-icon">IoT</span>
-          <span className="brand-name">PLACEHOLDERname</span>
+          <span className="brand-name">Team2App</span>
         </div>
 
         <nav className="sidebar-nav">
@@ -166,9 +179,6 @@ export default function Layout() {
             >
               <item.icon size={20} />
               <span>{item.label}</span>
-              {item.to === "/devices" && (
-                <span className="nav-badge">99</span>
-              )}
             </NavLink>
           ))}
         </nav>
@@ -220,18 +230,24 @@ export default function Layout() {
             )}
           </div>
 
-          {/* Environment mode pills */}
+          {/* Favorite mode quick-select buttons */}
           <div className="env-selector">
-            {envModes.map((env) => (
-              <button
-                key={env.id}
-                className={`env-pill ${mode === env.id ? "active" : ""} env-${env.id}`}
-                onClick={() => setEnvModalOpen(true)}
-              >
-                <env.icon size={14} />
-                <span>{env.label}</span>
-              </button>
-            ))}
+            {[0, 1, 2].map((slotIndex) => {
+              const favModeId = favoriteModes[slotIndex];
+              if (!favModeId) return null;
+              const IconComp = modeIconMap[favModeId] ?? Activity;
+              const isActive = mode === favModeId;
+              return (
+                <button
+                  key={favModeId}
+                  className={`env-pill ${isActive ? "active" : ""} env-${favModeId}`}
+                  onClick={() => setEnvironment(favModeId as EnvironmentMode)}
+                  title={favModeId}
+                >
+                  <IconComp size={14} />
+                </button>
+              );
+            })}
           </div>
 
           <div className="header-right" ref={menuRef}>
@@ -396,8 +412,8 @@ export default function Layout() {
       {envModalOpen && (
         <div className="env-modal-overlay" onClick={() => setEnvModalOpen(false)}>
           <div className="env-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{t.env_office === "Kancelář / Škola" ? "Vlastní režim" : "Custom Mode"}</h2>
-            <p>{t.env_office === "Kancelář / Škola"
+            <h2>{locale === "cs" ? "Vlastní režim" : "Custom Mode"}</h2>
+            <p>{locale === "cs"
               ? "Vytvořte si vlastní režim prostředí s nastavením prahových hodnot pro jednotlivé senzory."
               : "Create a custom environment mode with your own sensor threshold settings."
             }</p>
@@ -407,20 +423,20 @@ export default function Layout() {
                 <input type="range" min="400" max="2000" defaultValue="800" disabled />
               </div>
               <div className="env-modal-field">
-                <label>{t.env_office === "Kancelář / Škola" ? "Teplota (°C)" : "Temperature (°C)"}</label>
+                <label>{locale === "cs" ? "Teplota (°C)" : "Temperature (°C)"}</label>
                 <input type="range" min="15" max="35" defaultValue="22" disabled />
               </div>
               <div className="env-modal-field">
-                <label>{t.env_office === "Kancelář / Škola" ? "Vlhkost (%)" : "Humidity (%)"}</label>
+                <label>{locale === "cs" ? "Vlhkost (%)" : "Humidity (%)"}</label>
                 <input type="range" min="20" max="80" defaultValue="50" disabled />
               </div>
             </div>
             <div className="env-modal-actions">
               <button className="btn btn-outline" onClick={() => setEnvModalOpen(false)}>
-                {t.env_office === "Kancelář / Škola" ? "Zavřít" : "Close"}
+                {locale === "cs" ? "Zavřít" : "Close"}
               </button>
               <button className="btn btn-primary" disabled>
-                {t.env_office === "Kancelář / Škola" ? "Uložit (připravujeme)" : "Save (coming soon)"}
+                {locale === "cs" ? "Uložit (připravujeme)" : "Save (coming soon)"}
               </button>
             </div>
           </div>

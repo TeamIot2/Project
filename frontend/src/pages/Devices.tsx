@@ -8,7 +8,9 @@ import { useDashboard } from "../contexts/DashboardContext";
 import type { DeviceInfo, EnvironmentalReading, EnvironmentMode } from "../types";
 import { Cpu, Battery, Clock, ChevronDown, Co2Molecule, Thermometer, Droplets, Activity, Sun, Volume2, LogOut } from "../components/Icons";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
+import { timeAgo } from "../utils/dateTime";
 import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
+import { DEVICE_SENSOR_FIELDS as sensorFields } from "../constants/chartColors";
 
 const ALL_ENV_MODES: EnvironmentMode[] = [
   "sleep",
@@ -19,27 +21,6 @@ const ALL_ENV_MODES: EnvironmentMode[] = [
   "factory",
   "greenhouse",
 ];
-
-function timeAgo(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "< 1m";
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
-// Sensor display config for the expanded view
-const sensorFields = [
-  { key: "co2_ppm", label: "CO2", unit: "ppm", color: "#22C55E", range: "0 – 5000" },
-  { key: "temperature_c", label: "sensor_temperature", unit: "°C", color: "#3B82F6", range: "–40 – +85" },
-  { key: "humidity_pct", label: "sensor_humidity", unit: "%", color: "#06B6D4", range: "0 – 100" },
-  { key: "pressure_hpa", label: "sensor_pressure", unit: "hPa", color: "#8B5CF6", range: "300 – 1100" },
-  { key: "light_lux", label: "sensor_light", unit: "lux", color: "#F59E0B", range: "1 – 65535" },
-  { key: "sound_level_adc", label: "sensor_noise", unit: "ADC", color: "#EF4444", range: "0 – 4095", rangeNote: "≈ 30 – 100 dB est." },
-] as const;
 
 const sensorIconMap: Record<string, typeof Co2Molecule> = {
   co2_ppm: Co2Molecule,
@@ -79,10 +60,10 @@ function DeviceRow({
       setLoadingReading(true);
       apiGet<EnvironmentalReading>(`/readings/latest/${device.device_id}`)
         .then(setReading)
-        .catch(() => {})
+        .catch((err) => console.warn("Failed to fetch reading:", err))
         .finally(() => setLoadingReading(false));
     }
-  }, [expanded, reading, loadingReading, device.device_id]);
+  }, [expanded, device.device_id]); // reading and loadingReading are guarded inside the effect
 
   useEffect(() => {
     setRenameValue(device.name);
@@ -90,8 +71,8 @@ function DeviceRow({
 
   // Translate sensor label keys
   function getSensorLabel(label: string): string {
-    const key = label as keyof typeof t;
-    return (t[key] as string) ?? label;
+    if (label in t) return (t as Record<string, string>)[label];
+    return label;
   }
 
   function handleConfirmRename() {
@@ -249,7 +230,7 @@ function DeviceRow({
               onClick={() => onDisconnectDevice(device.device_id)}
             >
               <LogOut size={14} />
-              <span>{t.disconnect_device ?? "Disconnect device"}</span>
+              <span>{t.disconnect_device}</span>
             </button>
           </div>
         </div>
@@ -259,8 +240,7 @@ function DeviceRow({
 }
 
 export default function Devices() {
-  const { t, locale } = useI18n();
-  const isCs = locale === "cs";
+  const { t } = useI18n();
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -295,7 +275,7 @@ export default function Devices() {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") resetConnectModal(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  });
+  }, [connectModalOpen]);
 
   function resetConnectModal() {
     setConnectModalOpen(false);
@@ -307,19 +287,11 @@ export default function Devices() {
 
   function handleConnectDevice() {
     if (!newDeviceName.trim()) {
-      setConnectMessage(
-        isCs
-          ? "Vypln nazev zarizeni."
-          : "Enter a device name."
-      );
+      setConnectMessage(t.device_name_required);
       return;
     }
 
-    setConnectMessage(
-      isCs
-        ? "Pripojeni noveho zarizeni je pripraveno (demo flow)."
-        : "New device connect flow is ready (demo mode)."
-    );
+    setConnectMessage(t.connect_ready);
   }
 
   if (loading) {
@@ -353,7 +325,7 @@ export default function Devices() {
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span>{isCs ? "Pripojit nove zarizeni" : "Connect new device"}</span>
+            <span>{t.connect_new_device}</span>
           </button>
         </div>
       </div>
@@ -374,35 +346,33 @@ export default function Devices() {
         <div className="modal-overlay" onClick={resetConnectModal}>
           <div className="modal-card devices-connect-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="devices-connect-title">
-              {isCs ? "Pripojit nove zarizeni" : "Connect new device"}
+              {t.connect_new_device}
             </h3>
             <p className="devices-connect-subtitle text-secondary">
-              {isCs
-                ? "Vytvor pripojovaci profil noveho senzoru."
-                : "Create a new sensor connection profile."}
+              {t.connect_new_device_subtitle}
             </p>
 
             <div className="devices-connect-form">
               <div className="form-group">
-                <label className="form-label">{isCs ? "Nazev zarizeni" : "Device name"}</label>
+                <label className="form-label">{t.device_name_label}</label>
                 <input
                   className="form-input"
                   value={newDeviceName}
                   onChange={(e) => setNewDeviceName(e.target.value)}
-                  placeholder={isCs ? "napr. Trida 2A" : "e.g. Office sensor"}
+                  placeholder={t.device_name_placeholder}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">{isCs ? "Misto" : "Location"}</label>
+                <label className="form-label">{t.location_label}</label>
                 <input
                   className="form-input"
                   value={newDeviceLocation}
                   onChange={(e) => setNewDeviceLocation(e.target.value)}
-                  placeholder={isCs ? "napr. 2. patro" : "e.g. 2nd floor"}
+                  placeholder={t.location_placeholder}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">{isCs ? "Typ pripojeni" : "Connection type"}</label>
+                <label className="form-label">{t.connection_type_label}</label>
                 <select className="form-select" value={newDeviceTransport} onChange={(e) => setNewDeviceTransport(e.target.value)}>
                   <option value="wifi">Wi-Fi</option>
                   <option value="ble">Bluetooth LE</option>
@@ -415,10 +385,10 @@ export default function Devices() {
 
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={resetConnectModal}>
-                {isCs ? "Zavrit" : "Close"}
+                {t.close}
               </button>
               <button className="btn btn-primary" onClick={handleConnectDevice}>
-                {isCs ? "Pripojit" : "Connect"}
+                {t.connect}
               </button>
             </div>
           </div>
