@@ -56,10 +56,14 @@ app.use("/api/environments", environmentRoutes);
 // Serve frontend (production build)
 // ============================================================
 
-// In dev: __dirname = backend/src → ../../frontend/dist
-// In prod: __dirname = backend/dist/backend/src → ../../../../frontend/dist
-// Use process.cwd() as reliable anchor (always PROJECT/backend/)
-const FRONTEND_DIST = path.resolve(process.cwd(), "../frontend/dist");
+// Try multiple paths to find frontend/dist — cwd varies between dev, prod, and Railway
+const FRONTEND_DIST_CANDIDATES = [
+  path.resolve(process.cwd(), "frontend/dist"),        // cwd = PROJECT/
+  path.resolve(process.cwd(), "../frontend/dist"),      // cwd = PROJECT/backend/
+  path.resolve(__dirname, "../../frontend/dist"),        // dev: __dirname = backend/src
+  path.resolve(__dirname, "../../../../frontend/dist"),  // prod: __dirname = backend/dist/backend/src
+];
+const FRONTEND_DIST = FRONTEND_DIST_CANDIDATES.find((p) => fs.existsSync(p)) ?? FRONTEND_DIST_CANDIDATES[0];
 
 if (fs.existsSync(FRONTEND_DIST)) {
   app.use(express.static(FRONTEND_DIST));

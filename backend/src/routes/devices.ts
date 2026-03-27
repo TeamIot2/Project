@@ -3,10 +3,11 @@
  *
  * GET /api/devices      — List all devices
  * GET /api/devices/:id  — Get a single device
+ * PATCH /api/devices/:id — Rename a device
  */
 
 import { Router, Request, Response } from "express";
-import { getDevicesFromDb } from "../services/database";
+import { getDevicesFromDb, renameDeviceInDb } from "../services/database";
 import { authenticateToken } from "../middleware/auth";
 
 const router = Router();
@@ -35,6 +36,30 @@ router.get("/:id", (req: Request, res: Response) => {
   }
 
   res.json(device);
+});
+
+router.patch("/:id", (req: Request, res: Response) => {
+  const rawDeviceId = req.params.id;
+  const deviceId = Array.isArray(rawDeviceId) ? rawDeviceId[0] : rawDeviceId;
+  const rawName = req.body?.name;
+
+  if (typeof deviceId !== "string" || deviceId.trim().length === 0) {
+    res.status(400).json({ error: "Device id is required" });
+    return;
+  }
+
+  if (typeof rawName !== "string" || rawName.trim().length === 0) {
+    res.status(400).json({ error: "Device name is required" });
+    return;
+  }
+
+  const updatedDevice = renameDeviceInDb(deviceId, rawName);
+  if (!updatedDevice) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+
+  res.json(updatedDevice);
 });
 
 export default router;

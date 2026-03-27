@@ -19,7 +19,10 @@ export function useTheme(): ThemeState {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const stored = localStorage.getItem("theme") as Theme | null;
+    return stored === "light" || stored === "dark" ? stored : "light";
+  });
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);

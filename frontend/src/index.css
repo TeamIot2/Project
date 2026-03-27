@@ -756,10 +756,10 @@ img {
 }
 
 .env-pill.active.env-office {
-  background: var(--env-office);
+  background: #1478A8;
   color: #FFFFFF;
-  border-color: var(--env-office);
-  box-shadow: 0 2px 8px rgba(56,189,248,0.4);
+  border-color: #1478A8;
+  box-shadow: 0 2px 8px rgba(20, 120, 168, 0.45);
 }
 
 .env-pill.active.env-sport {
@@ -797,10 +797,10 @@ img {
   box-shadow: 0 2px 8px rgba(22,163,74,0.35);
 }
 
-/* Dark desktop only: use icon color for header env-pill borders */
+/* Dark desktop only: match mobile env-pill border treatment */
 @container app-panel (min-width: 960px) {
-  [data-theme="dark"] .app-header .env-pill {
-    border-color: currentColor;
+  [data-theme="dark"] .app-header .env-pill:not(.active) {
+    border-color: var(--border-light);
   }
 }
 
@@ -1092,14 +1092,21 @@ img {
 }
 
 .login-card {
-  background: var(--surface);
+  background: #FFFFFF !important;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 16px 50px rgba(0,0,0,0.12) !important;
   padding: 2.5rem 2rem;
   width: 100%;
   max-width: 400px;
-  border: 1px solid var(--border-light);
-  transition: background-color 0.3s, border-color 0.3s;
+  border: 1px solid #E5DDD5 !important;
+  color: #2D2A26 !important;
+}
+
+[data-theme="dark"] .login-card {
+  background: #2A2825 !important;
+  border-color: #3D3A37 !important;
+  color: #F0EBE5 !important;
+  box-shadow: 0 16px 50px rgba(0,0,0,0.4) !important;
 }
 
 .login-header {
@@ -1124,13 +1131,42 @@ img {
 .login-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #2D2A26 !important;
+}
+
+[data-theme="dark"] .login-title {
+  color: #F0EBE5 !important;
 }
 
 .login-subtitle {
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: #6B6560 !important;
   margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .login-subtitle {
+  color: #9CA3AF !important;
+}
+
+/* Ensure login form inputs are always readable */
+.login-card .form-input {
+  background: #FFFFFF !important;
+  color: #2D2A26 !important;
+  border-color: #D1D5DB !important;
+}
+
+[data-theme="dark"] .login-card .form-input {
+  background: #333130 !important;
+  color: #F0EBE5 !important;
+  border-color: #4B5563 !important;
+}
+
+.login-card .form-label {
+  color: #2D2A26 !important;
+}
+
+[data-theme="dark"] .login-card .form-label {
+  color: #F0EBE5 !important;
 }
 
 .login-form {
@@ -1159,8 +1195,18 @@ img {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: var(--text-muted);
+  color: #9C9590 !important;
   font-size: 0.75rem;
+}
+
+.login-card .btn-outline {
+  color: #2D2A26 !important;
+  border-color: #D1D5DB !important;
+}
+
+[data-theme="dark"] .login-card .btn-outline {
+  color: #F0EBE5 !important;
+  border-color: #4B5563 !important;
 }
 
 .login-divider::before,
@@ -6185,6 +6231,24 @@ html[data-style="16"] .env-card.active .env-card-label {
   [data-theme="dark"] .device-rename-input.form-input { border: 2px solid #6B7280 !important; color: #F0EBE5 !important; background: #333130 !important; }
   [data-theme="dark"] .device-rename-row .device-rename-confirm.btn.btn-outline { border: 2px solid #9CA3AF !important; color: #F0EBE5 !important; background: transparent !important; }
 
+  /* Login page — override skin styles so login card is always readable */
+  html[data-style] .login-card .form-input,
+  html[data-style] .login-card .form-select { background: #FFFFFF !important; color: #2D2A26 !important; border-color: #D1D5DB !important; }
+  html[data-style] .login-card .form-label { color: #2D2A26 !important; }
+  html[data-style] .login-card .btn-outline { color: #2D2A26 !important; border-color: #D1D5DB !important; background: #FFFFFF !important; }
+  html[data-style] .login-title { color: #2D2A26 !important; }
+  html[data-style] .login-subtitle { color: #6B6560 !important; }
+  html[data-style] .login-divider { color: #9C9590 !important; }
+  html[data-style] .login-card { background: #FFFFFF !important; color: #2D2A26 !important; border-color: #E5DDD5 !important; }
+  [data-theme="dark"] html[data-style] .login-card .form-input,
+  [data-theme="dark"] html[data-style] .login-card .form-select { background: #333130 !important; color: #F0EBE5 !important; border-color: #4B5563 !important; }
+  [data-theme="dark"] html[data-style] .login-card .form-label { color: #F0EBE5 !important; }
+  [data-theme="dark"] html[data-style] .login-card .btn-outline { color: #F0EBE5 !important; border-color: #4B5563 !important; background: #333130 !important; }
+  [data-theme="dark"] html[data-style] .login-title { color: #F0EBE5 !important; }
+  [data-theme="dark"] html[data-style] .login-subtitle { color: #9CA3AF !important; }
+  [data-theme="dark"] html[data-style] .login-divider { color: #6B7280 !important; }
+  [data-theme="dark"] html[data-style] .login-card { background: #2A2825 !important; color: #F0EBE5 !important; border-color: #3D3A37 !important; }
+
   /* Device meta line (Last data, 3.3V, Firmware) — desktop dark mode */
   [data-theme="dark"] .device-meta-group .device-meta { color: #B0ADA8 !important; }
   [data-theme="dark"] .device-meta-group .device-meta svg { color: #B0ADA8 !important; }
@@ -6375,7 +6439,9 @@ html[data-style="16"] .env-card.active .env-card-label {
   html[data-style="16"] .app-layout,
   html[data-style="16"] .main-wrapper,
   html[data-style="16"] .main-content {
-    background: linear-gradient(180deg, #D6E4FF 0%, #E8F0FE 15%, #F5F8FF 40%, #FFFFFF 100%) !important;
+    background:
+      repeating-linear-gradient(132deg, rgba(109, 130, 182, 0.17) 0 1px, rgba(109, 130, 182, 0) 1px 15px),
+      linear-gradient(180deg, #D6E4FF 0%, #E8F0FE 15%, #F5F8FF 40%, #FFFFFF 100%) !important;
   }
 
   html[data-style="16"] .main-content {
@@ -6425,6 +6491,11 @@ html[data-style="16"] .env-card.active .env-card-label {
     background: #1478A8 !important;
     border-color: #1478A8 !important;
     box-shadow: 0 2px 8px rgba(20, 120, 168, 0.45) !important;
+  }
+  [data-theme="dark"][data-style="16"] .env-pill.active.env-office {
+    background: #0E5C84 !important;
+    border-color: #0E5C84 !important;
+    box-shadow: 0 2px 8px rgba(14, 92, 132, 0.45) !important;
   }
 
   /* Header alignment â€” match figma content width (820px) */
@@ -6959,9 +7030,17 @@ html[data-style="16"] .env-card.active .env-card-label {
     position: relative !important;
   }
 
+  html[data-theme="light"][data-style="16"] .figma-tab {
+    background: #ECF3FF !important;
+  }
+
   .figma-tab:hover {
     color: #64748B !important;
     border-color: #94A3B8 !important;
+  }
+
+  html[data-theme="light"][data-style="16"] .figma-tab:hover {
+    background: #E3EDFD !important;
   }
 
   /* ACTIVE TAB â€” lighter version of accent border, extends down to overlap content top border */
@@ -7017,6 +7096,7 @@ html[data-style="16"] .env-card.active .env-card-label {
 
   .figma-mode-warning .mode-without-device-text {
     font-size: 1rem;
+    color: #2D2A26;
   }
 
   .figma-mode-warning .mode-without-device-action {
@@ -9761,7 +9841,9 @@ html[data-style] .devices-connect-modal {
 
 /* ===================================================================
    STYLE 16 DESKTOP DARK: swap page/panel tones to match mobile intent
-   - Page/background: dark blue
+   - Page/background: darker blue with visible shading/pattern
+   - Previous background gradient:
+     radial-gradient(ellipse at 50% -22%, rgba(95, 118, 220, 0.20) 0%, rgba(26, 31, 76, 0.94) 48%, #151A44 100%)
    - Center figma panel/cards: gray shades
    =================================================================== */
 @container app-panel (min-width: 960px) {
@@ -9771,7 +9853,11 @@ html[data-style] .devices-connect-modal {
   [data-theme="dark"][data-style="16"] .main-wrapper,
   [data-theme="dark"][data-style="16"] .main-content,
   [data-theme="dark"][data-style="16"] .dual-view-shell.dual .desktop-panel {
-    background: radial-gradient(ellipse at 50% -22%, rgba(95, 118, 220, 0.20) 0%, rgba(26, 31, 76, 0.94) 48%, #151A44 100%) !important;
+    background:
+      radial-gradient(1250px 560px at 50% -14%, rgba(97, 102, 124, 0.28) 0%, rgba(97, 102, 124, 0) 62%),
+      radial-gradient(980px 520px at 12% 106%, rgba(26, 29, 45, 0.62) 0%, rgba(26, 29, 45, 0) 68%),
+      repeating-linear-gradient(132deg, rgba(255, 255, 255, 0.03) 0 2px, rgba(255, 255, 255, 0) 2px 16px),
+      linear-gradient(180deg, #1F2236 0%, #181A2B 38%, #111322 72%, #0B0D14 100%) !important;
   }
 
   [data-theme="dark"][data-style="16"] .dashboard-page {
@@ -10006,4 +10092,103 @@ html[data-style] .devices-connect-modal {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
+}
+
+/* ===========================================================================
+   STYLE 16 LIGHT MOBILE: keep visible striped background in mobile light mode
+   =========================================================================== */
+@container app-panel (max-width: 959px) {
+  [data-theme="light"][data-style="16"] .app-layout,
+  [data-theme="light"][data-style="16"] .main-wrapper,
+  [data-theme="light"][data-style="16"] .main-content {
+    background:
+      repeating-linear-gradient(132deg, rgba(109, 130, 182, 0.17) 0 1px, rgba(109, 130, 182, 0) 1px 15px),
+      linear-gradient(180deg, #D6E4FF 0%, #E8F0FE 15%, #F5F8FF 40%, #FFFFFF 100%) !important;
+  }
+
+  [data-theme="light"][data-style="16"] .dashboard-page,
+  [data-theme="light"][data-style="16"] .history-page,
+  [data-theme="light"][data-style="16"] .devices-page,
+  [data-theme="light"][data-style="16"] .settings-page {
+    background: transparent !important;
+  }
+}
+
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .app-layout,
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-wrapper,
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-content {
+  background:
+    repeating-linear-gradient(132deg, rgba(109, 130, 182, 0.17) 0 1px, rgba(109, 130, 182, 0) 1px 15px),
+    linear-gradient(180deg, #D6E4FF 0%, #E8F0FE 15%, #F5F8FF 40%, #FFFFFF 100%) !important;
+}
+
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .dashboard-page,
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .history-page,
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .devices-page,
+[data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .settings-page {
+  background: transparent !important;
+}
+
+/* ===========================================================================
+   STYLE 16 DARK MOBILE: reuse desktop blue pattern on mobile UI
+   =========================================================================== */
+@container app-panel (max-width: 959px) {
+  [data-theme="dark"][data-style="16"] .app-layout,
+  [data-theme="dark"][data-style="16"] .main-wrapper,
+  [data-theme="dark"][data-style="16"] .main-content {
+    background:
+      radial-gradient(720px 340px at 50% -16%, rgba(80, 84, 104, 0.30) 0%, rgba(80, 84, 104, 0) 64%),
+      radial-gradient(560px 300px at 14% 108%, rgba(22, 23, 33, 0.58) 0%, rgba(22, 23, 33, 0) 72%),
+      repeating-linear-gradient(132deg, rgba(255, 255, 255, 0.028) 0 2px, rgba(255, 255, 255, 0) 2px 14px),
+      linear-gradient(180deg, #1B1D2A 0%, #151723 38%, #0F1018 72%, #0A0B0F 100%) !important;
+  }
+
+  [data-theme="dark"][data-style="16"] .dashboard-page,
+  [data-theme="dark"][data-style="16"] .history-page,
+  [data-theme="dark"][data-style="16"] .devices-page,
+  [data-theme="dark"][data-style="16"] .settings-page {
+    background: transparent !important;
+  }
+}
+
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .app-layout,
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-wrapper,
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-content {
+  background:
+    radial-gradient(720px 340px at 50% -16%, rgba(80, 84, 104, 0.30) 0%, rgba(80, 84, 104, 0) 64%),
+    radial-gradient(560px 300px at 14% 108%, rgba(22, 23, 33, 0.58) 0%, rgba(22, 23, 33, 0) 72%),
+    repeating-linear-gradient(132deg, rgba(255, 255, 255, 0.028) 0 2px, rgba(255, 255, 255, 0) 2px 14px),
+    linear-gradient(180deg, #1B1D2A 0%, #151723 38%, #0F1018 72%, #0A0B0F 100%) !important;
+}
+
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel {
+  background: #0B0B10 !important;
+}
+
+@media (max-width: 1439px) {
+  html[data-style="16"][data-theme="dark"] body,
+  html[data-style="16"][data-theme="dark"] #root {
+    background: #0B0B10 !important;
+  }
+}
+
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .dashboard-page,
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .history-page,
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .devices-page,
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .settings-page {
+  background: transparent !important;
+}
+
+@container app-panel (max-width: 959px) {
+  [data-theme="dark"][data-style="16"] .env-pill.active.env-office {
+    background: #0E5C84 !important;
+    border-color: #0E5C84 !important;
+    box-shadow: 0 2px 8px rgba(14, 92, 132, 0.45) !important;
+  }
+}
+
+[data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .env-pill.active.env-office {
+  background: #0E5C84 !important;
+  border-color: #0E5C84 !important;
+  box-shadow: 0 2px 8px rgba(14, 92, 132, 0.45) !important;
 }

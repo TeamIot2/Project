@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
-    "build": "npm run build:frontend && npm run build:backend",
+    "build": "npm run build:backend && npm run build:frontend",
     "start": "cd backend && node dist/backend/src/server.js",
     "dev": "echo 'Run frontend and backend separately — see docs/project_status.md'"
   }

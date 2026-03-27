@@ -1,9 +1,8 @@
 // Devices page: expandable device list with sensor details
 
 import { useState, useEffect } from "react";
-import { apiGet } from "../api";
+import { apiGet, apiPatch } from "../api";
 import { useI18n } from "../contexts/I18nContext";
-import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useDashboard } from "../contexts/DashboardContext";
 import type { DeviceInfo, EnvironmentalReading, EnvironmentMode } from "../types";
 import { Cpu, Battery, Clock, ChevronDown, Co2Molecule, Thermometer, Droplets, Activity, Sun, Volume2, LogOut } from "../components/Icons";
@@ -37,14 +36,11 @@ function DeviceRow({
   onDisconnectDevice,
 }: {
   device: DeviceInfo;
-  onRenameDevice: (deviceId: string, nextName: string) => void;
+  onRenameDevice: (deviceId: string, nextName: string) => Promise<void>;
   onDisconnectDevice: (deviceId: string) => void;
 }) {
   const { t } = useI18n();
-  const { getQuality } = useEnvironment();
   const {
-    selectedDevices,
-    setSelectedDevices,
     deviceModeAssignments,
     setDeviceModeAssignments,
   } = useDashboard();
@@ -52,6 +48,7 @@ function DeviceRow({
   const expanded = isExpanded(device.device_id);
   const [reading, setReading] = useState<EnvironmentalReading | null>(null);
   const [loadingReading, setLoadingReading] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(device.name);
 
   // Fetch latest reading when expanded
@@ -71,14 +68,23 @@ function DeviceRow({
 
   // Translate sensor label keys
   function getSensorLabel(label: string): string {
-    if (label in t) return (t as Record<string, string>)[label];
+    if (label in t) return (t as unknown as Record<string, string>)[label];
     return label;
   }
 
-  function handleConfirmRename() {
+  async function handleConfirmRename() {
     const nextName = renameValue.trim();
-    if (!nextName || nextName === device.name) return;
-    onRenameDevice(device.device_id, nextName);
+    if (!nextName || nextName === device.name || renaming) return;
+
+    try {
+      setRenaming(true);
+      await onRenameDevice(device.device_id, nextName);
+    } catch (err) {
+      console.warn("Failed to rename device:", err);
+      setRenameValue(device.name);
+    } finally {
+      setRenaming(false);
+    }
   }
 
   const assignedModes = deviceModeAssignments[device.device_id] ?? ALL_ENV_MODES;
@@ -168,15 +174,15 @@ function DeviceRow({
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleConfirmRename();
+                if (e.key === "Enter") void handleConfirmRename();
               }}
               aria-label="Rename device"
             />
             <button
               type="button"
               className="btn btn-sm btn-outline device-rename-confirm"
-              onClick={handleConfirmRename}
-              disabled={!renameValue.trim() || renameValue.trim() === device.name}
+              onClick={() => void handleConfirmRename()}
+              disabled={renaming || !renameValue.trim() || renameValue.trim() === device.name}
             >
               Confirm
             </button>
@@ -257,10 +263,11 @@ export default function Devices() {
       .finally(() => setLoading(false));
   }, []);
 
-  function handleRenameDevice(deviceId: string, nextName: string) {
+  async function handleRenameDevice(deviceId: string, nextName: string): Promise<void> {
+    const updated = await apiPatch<DeviceInfo>(`/devices/${deviceId}`, { name: nextName });
     setDevices((prev) =>
       prev.map((device) =>
-        device.device_id === deviceId ? { ...device, name: nextName } : device
+        device.device_id === deviceId ? { ...device, ...updated } : device
       )
     );
   }

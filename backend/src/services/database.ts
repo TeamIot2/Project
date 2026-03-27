@@ -142,6 +142,38 @@ export function getDevicesFromDb(): DeviceInfo[] {
   return result;
 }
 
+export function renameDeviceInDb(deviceId: string, nextName: string): DeviceInfo | null {
+  const trimmedName = nextName.trim();
+  if (!trimmedName) return null;
+
+  const updateStmt = db.prepare("UPDATE devices SET name = ? WHERE device_id = ?");
+  updateStmt.run([trimmedName, deviceId]);
+  updateStmt.free();
+
+  const selectStmt = db.prepare("SELECT * FROM devices WHERE device_id = ? LIMIT 1");
+  selectStmt.bind([deviceId]);
+
+  if (!selectStmt.step()) {
+    selectStmt.free();
+    return null;
+  }
+
+  const row = selectStmt.getAsObject() as Record<string, unknown>;
+  selectStmt.free();
+
+  saveToDisk();
+
+  return {
+    device_id: row.device_id as string,
+    name: row.name as string,
+    location: row.location as string,
+    last_seen: row.last_seen as string,
+    status: row.status as "online" | "offline" | "error",
+    firmware_version: (row.firmware_version as string) || undefined,
+    battery_v: row.battery_v as number | undefined,
+  };
+}
+
 // ============================================================
 // Reading operations
 // ============================================================

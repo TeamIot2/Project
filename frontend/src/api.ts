@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.DEV ? "http://localhost:3001/api" : "/api";
  * Build a URL with query parameters.
  */
 function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
-  const url = new URL(`${API_BASE}${path}`);
+  const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -79,6 +79,22 @@ export async function apiPost<T>(
   const url = buildUrl(path);
   const response = await fetch(url, {
     method: "POST",
+    headers: authHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse<T>(response);
+}
+
+/**
+ * PATCH request with optional JSON body.
+ */
+export async function apiPatch<T>(
+  path: string,
+  body?: Record<string, unknown>
+): Promise<T> {
+  const url = buildUrl(path);
+  const response = await fetch(url, {
+    method: "PATCH",
     headers: authHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   });

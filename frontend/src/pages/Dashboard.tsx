@@ -858,20 +858,6 @@ export default function Dashboard() {
     },
   ];
 
-  const devicePreviewCards = (devices.length > 0 ? devices : [
-    { device_id: "demo-1", name: "Living Room", status: "online", location: "Ground floor", battery_v: 3.9, last_seen: new Date().toISOString() },
-    { device_id: "demo-2", name: "Office", status: "online", location: "2nd floor", battery_v: 3.7, last_seen: new Date(Date.now() - 1000 * 60 * 8).toISOString() },
-    { device_id: "demo-3", name: "Bedroom", status: "offline", location: "1st floor", battery_v: 3.4, last_seen: new Date(Date.now() - 1000 * 60 * 48).toISOString() },
-  ]).slice(0, 3).map((device, index) => ({
-    ...device,
-    sync: index === 0 ? "Auto sync every 30 s" : index === 1 ? "Battery saver mode" : "Reconnect scheduled",
-    sensors: index === 0
-      ? ["CO2", "Temperature", "Humidity", "Light"]
-      : index === 1
-        ? ["CO2", "Pressure", "Noise"]
-        : ["Temperature", "Humidity"],
-  }));
-
   const settingsPreview = [
     { label: "Push alerts", value: "Enabled", hint: "High CO2 and offline device warnings" },
     { label: "Weekly summary", value: "Monday 08:00", hint: "Email digest with trends and anomalies" },

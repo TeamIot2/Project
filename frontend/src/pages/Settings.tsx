@@ -693,7 +693,7 @@ export default function Settings() {
           <button className="btn btn-primary" onClick={saveProfile}>
             {isCs ? "Ulozit profil" : "Save profile"}
           </button>
-          {profileMessage && <p className="settings-inline-message">{(t as Record<string, string>)[profileMessage] ?? profileMessage}</p>}
+          {profileMessage && <p className="settings-inline-message">{(t as unknown as Record<string, string>)[profileMessage] ?? profileMessage}</p>}
         </div>
       </section>
 

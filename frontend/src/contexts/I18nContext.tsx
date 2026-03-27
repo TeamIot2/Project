@@ -20,7 +20,7 @@ export function useI18n(): I18nState {
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
     const stored = localStorage.getItem("locale") as Locale | null;
-    return stored === "cs" || stored === "en" ? stored : "cs";
+    return stored === "cs" || stored === "en" ? stored : "en";
   });
 
   const setLocale = useCallback((newLocale: Locale) => {
