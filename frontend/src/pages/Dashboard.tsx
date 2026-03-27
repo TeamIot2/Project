@@ -1,6 +1,6 @@
 // Dashboard page: air quality score, sensor cards with sparklines, environment selector.
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from "../contexts/DashboardContext";
 import {
@@ -329,6 +329,45 @@ export default function Dashboard() {
     const paths = { measure: "/", history: "/history", devices: "/devices", settings: "/settings" };
     navigate(paths[tab]);
   }, [navigate]);
+  const classicDeviceSelectionRef = useRef<HTMLDivElement | null>(null);
+  const figmaMeasureDevicesRef = useRef<HTMLDivElement | null>(null);
+  const scrollToModeDeviceSelection = useCallback(() => {
+    setDevicesExpanded(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const wrappers = [figmaMeasureDevicesRef.current, classicDeviceSelectionRef.current];
+        const wrapper = wrappers.find((node) => node && node.getClientRects().length > 0);
+        if (!wrapper) return;
+
+        // Scroll to the first visible device row (not just wrapper top) and keep a small top gap.
+        const firstDeviceRow = wrapper.querySelector<HTMLElement>(".figma-device-group, .device-expand-row");
+        const target = firstDeviceRow ?? wrapper;
+        const inMobilePanel = Boolean(target.closest(".mobile-panel"));
+        const isMobileViewport = window.matchMedia("(max-width: 959px)").matches;
+        const mobileLike = inMobilePanel || isMobileViewport;
+        const topGapPx = mobileLike ? 10 : 8;
+
+        const mainWrapper = target.closest<HTMLElement>(".main-wrapper");
+        if (
+          mainWrapper
+          && mainWrapper.scrollHeight > mainWrapper.clientHeight + 1
+          && /auto|scroll/.test(window.getComputedStyle(mainWrapper).overflowY)
+        ) {
+          const containerRect = mainWrapper.getBoundingClientRect();
+          const targetTopInContainer = target.getBoundingClientRect().top - containerRect.top + mainWrapper.scrollTop;
+          const nextTop = Math.max(0, targetTopInContainer - topGapPx);
+          mainWrapper.scrollTo({ top: nextTop, behavior: "smooth" });
+          return;
+        }
+
+        const header = document.querySelector<HTMLElement>(".app-header");
+        const headerHeight = header?.getBoundingClientRect().height ?? 0;
+        const targetTopInDocument = window.scrollY + target.getBoundingClientRect().top;
+        const nextTop = Math.max(0, targetTopInDocument - headerHeight - topGapPx);
+        window.scrollTo({ top: nextTop, behavior: "smooth" });
+      });
+    });
+  }, [setDevicesExpanded]);
 
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
   const FIGMA_SIDE_CARD_WIDTH = 228;
@@ -1041,7 +1080,7 @@ export default function Dashboard() {
           <button
             type="button"
             className="mode-without-device-action"
-            onClick={() => setFigmaTab("devices")}
+            onClick={scrollToModeDeviceSelection}
           >
             {t.mode_without_device_action}
           </button>
@@ -1095,7 +1134,7 @@ export default function Dashboard() {
       </section>
 
       {/* Device selection â€” expandable with sensor checkboxes */}
-      <div className="device-checkboxes-wrapper">
+      <div ref={classicDeviceSelectionRef} className="device-checkboxes-wrapper">
         <button
           className="devices-collapse-btn"
           onClick={() => setDevicesExpanded(e => !e)}
@@ -1490,7 +1529,7 @@ export default function Dashboard() {
                     <button
                       type="button"
                       className="mode-without-device-action"
-                      onClick={() => setFigmaTab("devices")}
+                      onClick={scrollToModeDeviceSelection}
                     >
                       {t.mode_without_device_action}
                     </button>
@@ -1553,7 +1592,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Device list */}
-                <div className="figma-devices-wrapper">
+                <div ref={figmaMeasureDevicesRef} className="figma-devices-wrapper">
                   <button
                     className="figma-devices-collapse"
                     onClick={() => setDevicesExpanded(e => !e)}

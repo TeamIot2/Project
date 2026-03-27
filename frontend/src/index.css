@@ -104,6 +104,11 @@
   box-sizing: border-box;
 }
 
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg);
@@ -189,6 +194,8 @@ img {
   container-type: inline-size;
   container-name: app-panel;
   position: relative;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .dual-view-shell.dual {
@@ -8358,6 +8365,44 @@ html[data-style="16"] .env-card.active .env-card-label {
     font-size: 0.75rem;
   }
 }
+
+/* Real phone / single-panel: remove phone frame, fill entire viewport */
+.dual-view-shell.single .app-layout {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  aspect-ratio: unset !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow-x: hidden !important;
+}
+
+.dual-view-shell.single .bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  border-radius: 0 !important;
+  z-index: 100 !important;
+}
+
+.dual-view-shell.single .app-header {
+  border-radius: 0 !important;
+}
+
+.dual-view-shell.single .main-wrapper {
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
+}
+
+.dual-view-shell.single .main-content {
+  padding-bottom: calc(var(--bottom-nav-height) + 1rem) !important;
+}
+
 /* ===================================================================
    DEVICES CONNECT FLOW
    =================================================================== */
@@ -10095,12 +10140,12 @@ html[data-style] .devices-connect-modal {
 }
 
 /* ===========================================================================
-   STYLE 16 LIGHT MOBILE: keep visible striped background in mobile light mode
+   STYLE 16 LIGHT MOBILE: striped background ONLY in dual-view preview
    =========================================================================== */
 @container app-panel (max-width: 959px) {
-  [data-theme="light"][data-style="16"] .app-layout,
-  [data-theme="light"][data-style="16"] .main-wrapper,
-  [data-theme="light"][data-style="16"] .main-content {
+  [data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .app-layout,
+  [data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-wrapper,
+  [data-theme="light"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-content {
     background:
       repeating-linear-gradient(132deg, rgba(109, 130, 182, 0.17) 0 1px, rgba(109, 130, 182, 0) 1px 15px),
       linear-gradient(180deg, #D6E4FF 0%, #E8F0FE 15%, #F5F8FF 40%, #FFFFFF 100%) !important;
@@ -10130,12 +10175,12 @@ html[data-style] .devices-connect-modal {
 }
 
 /* ===========================================================================
-   STYLE 16 DARK MOBILE: reuse desktop blue pattern on mobile UI
+   STYLE 16 DARK MOBILE: striped background ONLY in dual-view preview
    =========================================================================== */
 @container app-panel (max-width: 959px) {
-  [data-theme="dark"][data-style="16"] .app-layout,
-  [data-theme="dark"][data-style="16"] .main-wrapper,
-  [data-theme="dark"][data-style="16"] .main-content {
+  [data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .app-layout,
+  [data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-wrapper,
+  [data-theme="dark"][data-style="16"] .dual-view-shell.dual .mobile-panel .main-content {
     background:
       radial-gradient(720px 340px at 50% -16%, rgba(80, 84, 104, 0.30) 0%, rgba(80, 84, 104, 0) 64%),
       radial-gradient(560px 300px at 14% 108%, rgba(22, 23, 33, 0.58) 0%, rgba(22, 23, 33, 0) 72%),

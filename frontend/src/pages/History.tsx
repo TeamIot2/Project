@@ -157,7 +157,7 @@ export default function History() {
   const [intervalEndDate, setIntervalEndDate] = useState(() => formatLocalDate(new Date()));
   const { toggle: toggleExpand, isExpanded: isDeviceExpanded } = useExpandedDevices();
   const [selectedSensors, setSelectedSensors] = useState<Set<string>>(new Set(metrics.map(m => m.key)));
-  const [chartMode, setChartMode] = useState<ChartMode>("deviation");
+  const [chartMode, setChartMode] = useState<ChartMode>("individual");
   const [readings, setReadings] = useState<EnvironmentalReading[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -620,11 +620,11 @@ export default function History() {
             return (
               <div key={metric.key} className="card chart-card">
                 <h3 className="chart-title">
-                  {translatedLabel} ({metric.unit})
+                  {translatedLabel}
                 </h3>
                 {isMobile && (
                   <div className="history-mobile-y-axis-labels history-mobile-y-axis-labels--range" aria-hidden="true">
-                    <span>{individualMobileRangeLabel}</span>
+                    <span>{individualMobileRangeLabel} {metric.unit}</span>
                   </div>
                 )}
                 <ResponsiveContainer width="100%" height={individualChartHeight}>
