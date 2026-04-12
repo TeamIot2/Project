@@ -1,0 +1,923 @@
+﻿{
+    "id":  "744b0ccc4e0234d2b90be22136f941bd",
+    "author":  "3002-7094-1",
+    "size":  {
+                 "width":  2048,
+                 "height":  2048
+             },
+    "editMode":  {
+                     "frameVisible":  true,
+                     "gridVisible":  true,
+                     "socketsVisible":  false,
+                     "plugsVisible":  false,
+                     "anchorsVisible":  false,
+                     "consoleVisible":  false
+                 },
+    "presentationMode":  {
+                             "frameVisible":  false,
+                             "gridVisible":  false,
+                             "socketsVisible":  false,
+                             "plugsVisible":  false,
+                             "anchorsVisible":  false
+                         },
+    "elementMap":  {
+                       "a0000001":  {
+                                        "id":  "a0000001",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "actor",
+                                        "position":  {
+                                                         "x":  96,
+                                                         "y":  96
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "User Account",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  192,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c0000000",
+                                                             "c0000001",
+                                                             "c0000002",
+                                                             "c0000003",
+                                                             "c0000004",
+                                                             "c0000005",
+                                                             "c0000006",
+                                                             "c0000007",
+                                                             "c0000008"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c0000009",
+                                                               "c000000a",
+                                                               "c000000b",
+                                                               "c000000c",
+                                                               "c000000d",
+                                                               "c000000e",
+                                                               "c000000f",
+                                                               "c0000010"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c0000011",
+                                                              "c0000012",
+                                                              "c0000013",
+                                                              "c0000014",
+                                                              "c0000015",
+                                                              "c0000016",
+                                                              "c0000017",
+                                                              "c0000018"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c0000019",
+                                                                "c000001a",
+                                                                "c000001b",
+                                                                "c000001c",
+                                                                "c000001d",
+                                                                "c000001e",
+                                                                "c000001f",
+                                                                "c0000020",
+                                                                "c0000021"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c000000b":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000001",
+                                                                                       "plugId":  "d00000ee"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000002":  {
+                                        "id":  "a0000002",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "uuwhitelist",
+                                        "position":  {
+                                                         "x":  352,
+                                                         "y":  96
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Monitoring Mode",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  208,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c0000022",
+                                                             "c0000023",
+                                                             "c0000024",
+                                                             "c0000025",
+                                                             "c0000026",
+                                                             "c0000027",
+                                                             "c0000028",
+                                                             "c0000029",
+                                                             "c000002a"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c000002b",
+                                                               "c000002c",
+                                                               "c000002d",
+                                                               "c000002e",
+                                                               "c000002f",
+                                                               "c0000030",
+                                                               "c0000031",
+                                                               "c0000032"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c0000033",
+                                                              "c0000034",
+                                                              "c0000035",
+                                                              "c0000036",
+                                                              "c0000037",
+                                                              "c0000038",
+                                                              "c0000039",
+                                                              "c000003a"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c000003b",
+                                                                "c000003c",
+                                                                "c000003d",
+                                                                "c000003e",
+                                                                "c000003f",
+                                                                "c0000040",
+                                                                "c0000041",
+                                                                "c0000042",
+                                                                "c0000043"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c0000035":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000001",
+                                                                                       "plugId":  "d00000ef"
+                                                                                   }
+                                                                               ],
+                                                                  "c0000030":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000002",
+                                                                                       "plugId":  "d00000f0"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000003":  {
+                                        "id":  "a0000003",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "uuwhitelist",
+                                        "position":  {
+                                                         "x":  608,
+                                                         "y":  224
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Monitoring Device",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  224,
+                                        "importance":  "highest",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c0000044",
+                                                             "c0000045",
+                                                             "c0000046",
+                                                             "c0000047",
+                                                             "c0000048",
+                                                             "c0000049",
+                                                             "c000004a",
+                                                             "c000004b",
+                                                             "c000004c"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c000004d",
+                                                               "c000004e",
+                                                               "c000004f",
+                                                               "c0000050",
+                                                               "c0000051",
+                                                               "c0000052",
+                                                               "c0000053",
+                                                               "c0000054"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c0000055",
+                                                              "c0000056",
+                                                              "c0000057",
+                                                              "c0000058",
+                                                              "c0000059",
+                                                              "c000005a",
+                                                              "c000005b",
+                                                              "c000005c"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c000005d",
+                                                                "c000005e",
+                                                                "c000005f",
+                                                                "c0000060",
+                                                                "c0000061",
+                                                                "c0000062",
+                                                                "c0000063",
+                                                                "c0000064",
+                                                                "c0000065"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c0000048":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000002",
+                                                                                       "plugId":  "d00000f1"
+                                                                                   }
+                                                                               ],
+                                                                  "c000004f":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000003",
+                                                                                       "plugId":  "d00000f2"
+                                                                                   }
+                                                                               ],
+                                                                  "c0000061":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000005",
+                                                                                       "plugId":  "d00000f7"
+                                                                                   }
+                                                                               ],
+                                                                  "c000005a":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000006",
+                                                                                       "plugId":  "d00000f8"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000004":  {
+                                        "id":  "a0000004",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uumeetingrooms",
+                                        "uuBmlIconCode":  "reservationCalendar",
+                                        "position":  {
+                                                         "x":  864,
+                                                         "y":  224
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Environmental Reading",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  248,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c0000066",
+                                                             "c0000067",
+                                                             "c0000068",
+                                                             "c0000069",
+                                                             "c000006a",
+                                                             "c000006b",
+                                                             "c000006c",
+                                                             "c000006d",
+                                                             "c000006e"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c000006f",
+                                                               "c0000070",
+                                                               "c0000071",
+                                                               "c0000072",
+                                                               "c0000073",
+                                                               "c0000074",
+                                                               "c0000075",
+                                                               "c0000076"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c0000077",
+                                                              "c0000078",
+                                                              "c0000079",
+                                                              "c000007a",
+                                                              "c000007b",
+                                                              "c000007c",
+                                                              "c000007d",
+                                                              "c000007e"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c000007f",
+                                                                "c0000080",
+                                                                "c0000081",
+                                                                "c0000082",
+                                                                "c0000083",
+                                                                "c0000084",
+                                                                "c0000085",
+                                                                "c0000086",
+                                                                "c0000087"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c0000079":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000003",
+                                                                                       "plugId":  "d00000f3"
+                                                                                   }
+                                                                               ],
+                                                                  "c0000071":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000004",
+                                                                                       "plugId":  "d00000f4"
+                                                                                   }
+                                                                               ],
+                                                                  "c0000083":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000007",
+                                                                                       "plugId":  "d00000fb"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000005":  {
+                                        "id":  "a0000005",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "uuwhitelist",
+                                        "position":  {
+                                                         "x":  1120,
+                                                         "y":  224
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Alert Event",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  192,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c0000088",
+                                                             "c0000089",
+                                                             "c000008a",
+                                                             "c000008b",
+                                                             "c000008c",
+                                                             "c000008d",
+                                                             "c000008e",
+                                                             "c000008f",
+                                                             "c0000090"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c0000091",
+                                                               "c0000092",
+                                                               "c0000093",
+                                                               "c0000094",
+                                                               "c0000095",
+                                                               "c0000096",
+                                                               "c0000097",
+                                                               "c0000098"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c0000099",
+                                                              "c000009a",
+                                                              "c000009b",
+                                                              "c000009c",
+                                                              "c000009d",
+                                                              "c000009e",
+                                                              "c000009f",
+                                                              "c00000a0"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c00000a1",
+                                                                "c00000a2",
+                                                                "c00000a3",
+                                                                "c00000a4",
+                                                                "c00000a5",
+                                                                "c00000a6",
+                                                                "c00000a7",
+                                                                "c00000a8",
+                                                                "c00000a9"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c000009b":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000004",
+                                                                                       "plugId":  "d00000f5"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000006":  {
+                                        "id":  "a0000006",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "uuapp",
+                                        "position":  {
+                                                         "x":  608,
+                                                         "y":  448
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Environment",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  192,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c00000aa",
+                                                             "c00000ab",
+                                                             "c00000ac",
+                                                             "c00000ad",
+                                                             "c00000ae",
+                                                             "c00000af",
+                                                             "c00000b0",
+                                                             "c00000b1",
+                                                             "c00000b2"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c00000b3",
+                                                               "c00000b4",
+                                                               "c00000b5",
+                                                               "c00000b6",
+                                                               "c00000b7",
+                                                               "c00000b8",
+                                                               "c00000b9",
+                                                               "c00000ba"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c00000bb",
+                                                              "c00000bc",
+                                                              "c00000bd",
+                                                              "c00000be",
+                                                              "c00000bf",
+                                                              "c00000c0",
+                                                              "c00000c1",
+                                                              "c00000c2"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c00000c3",
+                                                                "c00000c4",
+                                                                "c00000c5",
+                                                                "c00000c6",
+                                                                "c00000c7",
+                                                                "c00000c8",
+                                                                "c00000c9",
+                                                                "c00000ca",
+                                                                "c00000cb"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c00000ae":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000005",
+                                                                                       "plugId":  "d00000f6"
+                                                                                   }
+                                                                               ],
+                                                                  "c00000b5":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000007",
+                                                                                       "plugId":  "d00000fa"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "a0000007":  {
+                                        "id":  "a0000007",
+                                        "elementType":  "Icon",
+                                        "sourceUuBmlStencil":  "uuappcommon",
+                                        "uuBmlIconCode":  "uuapp",
+                                        "position":  {
+                                                         "x":  352,
+                                                         "y":  384
+                                                     },
+                                        "uuIdentity":  null,
+                                        "text":  "Gateway",
+                                        "searchKey":  "",
+                                        "textHidden":  false,
+                                        "textWidth":  192,
+                                        "importance":  "high",
+                                        "plural":  false,
+                                        "state":  {
+
+                                                  },
+                                        "label":  {
+
+                                                  },
+                                        "topPointList":  [
+                                                             "c00000cc",
+                                                             "c00000cd",
+                                                             "c00000ce",
+                                                             "c00000cf",
+                                                             "c00000d0",
+                                                             "c00000d1",
+                                                             "c00000d2",
+                                                             "c00000d3",
+                                                             "c00000d4"
+                                                         ],
+                                        "rightPointList":  [
+                                                               "c00000d5",
+                                                               "c00000d6",
+                                                               "c00000d7",
+                                                               "c00000d8",
+                                                               "c00000d9",
+                                                               "c00000da",
+                                                               "c00000db",
+                                                               "c00000dc"
+                                                           ],
+                                        "leftPointList":  [
+                                                              "c00000dd",
+                                                              "c00000de",
+                                                              "c00000df",
+                                                              "c00000e0",
+                                                              "c00000e1",
+                                                              "c00000e2",
+                                                              "c00000e3",
+                                                              "c00000e4"
+                                                          ],
+                                        "bottomPointList":  [
+                                                                "c00000e5",
+                                                                "c00000e6",
+                                                                "c00000e7",
+                                                                "c00000e8",
+                                                                "c00000e9",
+                                                                "c00000ea",
+                                                                "c00000eb",
+                                                                "c00000ec",
+                                                                "c00000ed"
+                                                            ],
+                                        "textBackgroundVisible":  false,
+                                        "pluggedSocketsMap":  {
+                                                                  "c00000d0":  [
+                                                                                   {
+                                                                                       "elementId":  "b0000006",
+                                                                                       "plugId":  "d00000f9"
+                                                                                   }
+                                                                               ]
+                                                              }
+                                    },
+                       "b0000001":  {
+                                        "id":  "b0000001",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000ee":  {
+                                                                         "id":  "d00000ee",
+                                                                         "position":  {
+                                                                                          "x":  160,
+                                                                                          "y":  120
+                                                                                      },
+                                                                         "elementId":  "a0000001",
+                                                                         "socketId":  "c000000b"
+                                                                     },
+                                                        "d00000ef":  {
+                                                                         "id":  "d00000ef",
+                                                                         "position":  {
+                                                                                          "x":  352,
+                                                                                          "y":  120
+                                                                                      },
+                                                                         "elementId":  "a0000002",
+                                                                         "socketId":  "c0000035"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000ee",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000ef",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "creates",
+                                        "labelPosition":  1
+                                    },
+                       "b0000002":  {
+                                        "id":  "b0000002",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000f0":  {
+                                                                         "id":  "d00000f0",
+                                                                         "position":  {
+                                                                                          "x":  416,
+                                                                                          "y":  144
+                                                                                      },
+                                                                         "elementId":  "a0000002",
+                                                                         "socketId":  "c0000030"
+                                                                     },
+                                                        "d00000f1":  {
+                                                                         "id":  "d00000f1",
+                                                                         "position":  {
+                                                                                          "x":  640,
+                                                                                          "y":  224
+                                                                                      },
+                                                                         "elementId":  "a0000003",
+                                                                         "socketId":  "c0000048"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000f0",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000f1",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "assigned to",
+                                        "labelPosition":  1
+                                    },
+                       "b0000003":  {
+                                        "id":  "b0000003",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000f2":  {
+                                                                         "id":  "d00000f2",
+                                                                         "position":  {
+                                                                                          "x":  672,
+                                                                                          "y":  248
+                                                                                      },
+                                                                         "elementId":  "a0000003",
+                                                                         "socketId":  "c000004f"
+                                                                     },
+                                                        "d00000f3":  {
+                                                                         "id":  "d00000f3",
+                                                                         "position":  {
+                                                                                          "x":  864,
+                                                                                          "y":  248
+                                                                                      },
+                                                                         "elementId":  "a0000004",
+                                                                         "socketId":  "c0000079"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000f2",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000f3",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "produces",
+                                        "labelPosition":  1
+                                    },
+                       "b0000004":  {
+                                        "id":  "b0000004",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000f4":  {
+                                                                         "id":  "d00000f4",
+                                                                         "position":  {
+                                                                                          "x":  928,
+                                                                                          "y":  248
+                                                                                      },
+                                                                         "elementId":  "a0000004",
+                                                                         "socketId":  "c0000071"
+                                                                     },
+                                                        "d00000f5":  {
+                                                                         "id":  "d00000f5",
+                                                                         "position":  {
+                                                                                          "x":  1120,
+                                                                                          "y":  248
+                                                                                      },
+                                                                         "elementId":  "a0000005",
+                                                                         "socketId":  "c000009b"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000f4",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000f5",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "may trigger",
+                                        "labelPosition":  1
+                                    },
+                       "b0000005":  {
+                                        "id":  "b0000005",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000f6":  {
+                                                                         "id":  "d00000f6",
+                                                                         "position":  {
+                                                                                          "x":  640,
+                                                                                          "y":  448
+                                                                                      },
+                                                                         "elementId":  "a0000006",
+                                                                         "socketId":  "c00000ae"
+                                                                     },
+                                                        "d00000f7":  {
+                                                                         "id":  "d00000f7",
+                                                                         "position":  {
+                                                                                          "x":  640,
+                                                                                          "y":  304
+                                                                                      },
+                                                                         "elementId":  "a0000003",
+                                                                         "socketId":  "c0000061"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000f6",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000f7",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "contains",
+                                        "labelPosition":  1
+                                    },
+                       "b0000006":  {
+                                        "id":  "b0000006",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000f8":  {
+                                                                         "id":  "d00000f8",
+                                                                         "position":  {
+                                                                                          "x":  608,
+                                                                                          "y":  272
+                                                                                      },
+                                                                         "elementId":  "a0000003",
+                                                                         "socketId":  "c000005a"
+                                                                     },
+                                                        "d00000f9":  {
+                                                                         "id":  "d00000f9",
+                                                                         "position":  {
+                                                                                          "x":  384,
+                                                                                          "y":  384
+                                                                                      },
+                                                                         "elementId":  "a0000007",
+                                                                         "socketId":  "c00000d0"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000f8",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000f9",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "registered via",
+                                        "labelPosition":  1
+                                    },
+                       "b0000007":  {
+                                        "id":  "b0000007",
+                                        "elementType":  "Connector",
+                                        "searchKey":  "",
+                                        "plugMap":  {
+                                                        "d00000fa":  {
+                                                                         "id":  "d00000fa",
+                                                                         "position":  {
+                                                                                          "x":  672,
+                                                                                          "y":  472
+                                                                                      },
+                                                                         "elementId":  "a0000006",
+                                                                         "socketId":  "c00000b5"
+                                                                     },
+                                                        "d00000fb":  {
+                                                                         "id":  "d00000fb",
+                                                                         "position":  {
+                                                                                          "x":  896,
+                                                                                          "y":  304
+                                                                                      },
+                                                                         "elementId":  "a0000004",
+                                                                         "socketId":  "c0000083"
+                                                                     }
+                                                    },
+                                        "socketMap":  {
+
+                                                      },
+                                        "middlePointList":  [
+
+                                                            ],
+                                        "importance":  "normal",
+                                        "lineStyle":  "solid",
+                                        "relationType":  "general",
+                                        "startPoint":  {
+                                                           "pointType":  "Plug",
+                                                           "id":  "d00000fa",
+                                                           "pointer":  null
+                                                       },
+                                        "endPoint":  {
+                                                         "pointType":  "Plug",
+                                                         "id":  "d00000fb",
+                                                         "pointer":  "general"
+                                                     },
+                                        "label":  "groups",
+                                        "labelPosition":  1
+                                    }
+                   },
+    "elementZOrderList":  [
+                              "a0000001",
+                              "a0000002",
+                              "a0000003",
+                              "a0000004",
+                              "a0000005",
+                              "a0000006",
+                              "a0000007",
+                              "b0000001",
+                              "b0000002",
+                              "b0000003",
+                              "b0000004",
+                              "b0000005",
+                              "b0000006",
+                              "b0000007"
+                          ]
+}
