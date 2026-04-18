@@ -1,0 +1,46 @@
+Test Case Template
+1. Identification
+
+ID:
+Name:
+Related Business Use Case:
+Priority:
+Test Type:
+2. Description
+
+Stručný popis testovacího scénáře a jeho cíle.
+3. Preconditions
+
+Podmínky, které musí být splněny před zahájením testu.
+4. Test Data
+
+Data potřebná pro provedení testu.
+5. User Roles / Permissions
+
+Oprávnění nebo role uživatele potřebné k provedení testu.
+6. Start Point
+
+Výchozí stav aplikace před provedením testu, například přihlášený uživatel nebo otevřená konkrétní stránka.
+7. Test Steps
+
+Step 1:
+Action:
+Expected Result:
+Step 2:
+Action:
+Expected Result:
+Step 3:
+Action:
+Expected Result:
+8. Expected Result (Overall)
+
+Celkový očekávaný výsledek po úspěšném provedení testu.
+9. Postconditions
+
+Stav systému po dokončení testu, pokud je relevantní.
+10. Notes / Comments
+
+Doplňující informace, například testování na různých zařízeních nebo specifické podmínky.
+11. Estimation
+
+Odhadovaný čas potřebný k provedení testu.

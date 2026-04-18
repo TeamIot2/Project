@@ -1,0 +1,314 @@
+Testovací tým je součástí vývojového týmu (DEV) – agilní
+1. Úvod
+
+Tento dokument představuje návrh testovací strategie pro aplikaci ​uuManagementKit ​v projektu, kde je ​testovací tým součástí vývojového týmu (DEV) ​a vývoj probíhá ​agilním způsobem.
+
+Cílem testovací strategie je nastavit takový způsob testování, aby byla kvalita aplikace ověřována průběžně během celého vývoje, chyby byly zachycovány co nejdříve a výsledný produkt odpovídal požadavkům definovaným v ​Business Use Cases ​a dalších projektových podkladech.
+
+Testování je v tomto modelu přirozenou součástí každého sprintu a probíhá v úzké spolupráci testerů, vývojářů a Product Ownera.
+
+2. Test Strategy Scope
+
+Tato testovací strategie pokrývá testování aplikace ​uuManagementKit ​zejména z pohledu funkcionality, integrací, stability řešení a vybraných nefunkčních oblastí.
+
+Do rozsahu testování patří zejména:
+
+ověření funkcionalit definovaných v ​Business Use Cases,
+testování nově implementovaných částí aplikace v průběhu vývoje,
+ověření správné komunikace mezi jednotlivými komponentami a rozhraními,
+kontrola správnosti dat, validací a chování systému,
+průběžné testování v rámci jednotlivých sprintů,
+regresní testování po změnách a opravách,
+ověření klíčových uživatelských scénářů,
+ověření správného chování aplikace z pohledu různých rolí a oprávnění.
+Mimo rozsah této strategie jsou prozatím:
+
+detailní penetrační testy,
+rozsáhlé výkonové a zátěžové testy,
+specializované bezpečnostní audity prováděné externí stranou.
+3. Test Goals
+
+Hlavní cíle testování jsou následující:
+
+ověřit, že aplikace odpovídá požadavkům definovaným v business use cases,
+odhalovat chyby co nejdříve v průběhu sprintu,
+zajistit stabilitu řešení při průběžném rozšiřování funkcionality,
+ověřit správnou spolupráci jednotlivých částí systému,
+snížit riziko, že se chyba dostane do vyšších prostředí nebo k uživateli,
+podpořit rychlé a bezpečné dodávání změn v agilním vývoji,
+poskytovat týmu průběžnou zpětnou vazbu o kvalitě dodávané funkcionality.
+4. Test Stages and Responsibility
+
+4.1 Přístup k testování
+
+Vzhledem k tomu, že testovací tým je součástí vývojového týmu, probíhá testování ​průběžně během celého sprintu, nikoliv až po dokončení celé implementace. Tester a vývojář spolu úzce spolupracují od analýzy požadavků přes návrh řešení až po ověření hotové funkcionality.
+
+Testování je založeno zejména na těchto principech:
+
+včasné zapojení testera do vývoje,
+průběžná kontrola kvality,
+rychlá zpětná vazba,
+opakované ověřování po změnách,
+zaměření na rizikové a klíčové části systému.
+4.2 Odpovědnosti
+
+Vývojáři
+
+Vývojáři zodpovídají za:
+
+implementaci funkcionality,
+tvorbu a provádění unit testů,
+základní technické ověření implementace v DEV prostředí,
+opravy nalezených chyb,
+technickou kvalitu kódu,
+spolupráci s testerem při objasnění chování systému.
+Tester
+
+Tester zodpovídá za:
+
+návrh testovacích scénářů,
+přípravu testovacích dat,
+provádění smoke testů,
+funkční testování,
+integrační testování,
+end-to-end testování,
+regresní testování,
+evidenci a retest nalezených chyb,
+ověření, že implementace odpovídá požadavkům.
+Product Owner / zadavatel
+
+Product Owner nebo zadavatel zodpovídá za:
+
+upřesnění požadavků,
+prioritizaci funkcionalit,
+definici acceptance criteria,
+akceptaci výsledků sprintu,
+potvrzení, že dodaná funkcionalita odpovídá business potřebám.
+5. Test Types
+
+5.1 Unit Tests
+
+Unit testy ověřují správnost jednotlivých funkcí, metod nebo menších částí aplikace. Jsou vytvářeny a prováděny vývojáři průběžně během implementace.
+
+Cíl:
+
+ověřit správnost logiky na nízké úrovni,
+odhalit chyby co nejdříve.
+5.2 Smoke Tests
+
+Smoke testy slouží k rychlému ověření, že je aplikace po nasazení do testovacího prostředí stabilní a připravená k dalšímu testování.
+
+Cíl:
+
+ověřit dostupnost aplikace a základní funkčnost,
+potvrdit, že lze pokračovat ve funkčním testování.
+5.3 Integration Tests
+
+Integrační testy ověřují komunikaci mezi jednotlivými částmi systému, například mezi frontendem, backendem, API nebo dalšími službami.
+
+Cíl:
+
+ověřit správné předávání dat mezi moduly,
+odhalit chyby vznikající propojením komponent.
+5.4 Functional Tests
+
+Funkční testy ověřují, zda aplikace funguje podle zadání, business use cases a acceptance criteria.
+
+Cíl:
+
+ověřit splnění funkčních požadavků,
+validovat chování aplikace z pohledu uživatele.
+5.5 End-to-End Tests
+
+End-to-end testy pokrývají celé uživatelské scénáře napříč aplikací.
+
+Cíl:
+
+ověřit, že klíčové procesy fungují jako celek,
+simulovat reálné použití systému.
+5.6 Regression Tests
+
+Regresní testy se provádějí po změnách, opravách nebo doplnění nové funkcionality.
+
+Cíl:
+
+ověřit, že nové změny nepoškodily již dříve fungující části systému.
+5.7 Acceptance Testing
+
+Akceptační testování slouží k ověření, že dodaná funkcionalita splňuje očekávání Product Ownera nebo zadavatele a je připravena pro prezentaci, převzetí nebo nasazení do další fáze.
+
+Cíl:
+
+potvrdit, že výstup sprintu odpovídá požadavkům,
+rozhodnout, zda je funkcionalita připravena k akceptaci.
+6. Test Environments and Resources
+
+Pro testování budou využívána následující prostředí:
+
+DEV prostředí
+
+slouží pro vývoj a průběžné ověřování implementace,
+využívají jej vývojáři i tester,
+probíhají zde zejména unit testy a základní ověření implementace.
+TEST prostředí
+
+slouží pro systematičtější testování dokončených částí aplikace,
+využívá se zejména pro smoke, funkční, integrační, end-to-end a regresní testy.
+UAT prostředí
+
+může být využito pro ověření výsledku Product Ownerem, zadavatelem nebo dalšími zástupci business strany,
+používá se zejména pro akceptační ověření, pokud je v projektu k dispozici.
+Testovací data
+
+Budou používána připravená testovací data odpovídající hlavním business scénářům. ​
+
+Testovací data musí umožnit ověřit:
+
+standardní průběh,
+chybové stavy,
+hraniční situace,
+různé role a oprávnění.
+7. Test Plan
+
+V agilním přístupu je testování součástí každého sprintu a probíhá průběžně podle stavu implementace.
+
+Typický průběh testování ve sprintu:
+
+na začátku sprintu tým analyzuje požadavky, user stories a acceptance criteria,
+tester identifikuje testovací scénáře a připravuje test design,
+během vývoje probíhá průběžné ověřování nově implementovaných částí,
+po nasazení do testovacího prostředí se provede smoke test,
+po dokončení funkcionality následuje funkční a integrační ověření,
+před uzavřením sprintu proběhne regresní testování relevantních částí,
+na konci sprintu je funkcionalita předvedena a akceptována v rámci sprint review.
+Tento přístup umožňuje:
+
+rychlou zpětnou vazbu,
+průběžné zvyšování kvality,
+lepší reakci na změny v zadání,
+včasné odhalování problémů.
+8. Test Design and Repository
+
+8.1 Test Design
+
+Testovací scénáře budou navrhovány na základě:
+
+business use cases,
+user stories,
+acceptance criteria,
+znalosti rizikových oblastí aplikace,
+zkušeností z předchozího testování.
+Budou pokrývat zejména:
+
+pozitivní scénáře,
+negativní scénáře,
+alternativní scénáře,
+hraniční hodnoty,
+chybové vstupy,
+ověření rolí a oprávnění.
+Každý testovací případ by měl být navázán na konkrétní požadavek, business use case nebo acceptance criteria.
+
+8.2 Test Repository
+
+Testovací případy, testovací scénáře a související poznámky budou ukládány do zvoleného repozitáře nebo nástroje používaného týmem.
+
+Repozitář musí umožnit:
+
+evidenci test case,
+sledování výsledků testů,
+návaznost na požadavky a chyby,
+aktualizaci scénářů podle změn v aplikaci.
+9. Issue Tracking
+
+Všechny nalezené chyby budou evidovány v nástroji pro správu úkolů a incidentů.
+
+U každé chyby budou zaznamenány minimálně:
+
+název chyby,
+popis problému,
+prostředí,
+verze aplikace,
+kroky k reprodukci,
+testovací data,
+očekávaný výsledek,
+skutečný výsledek,
+priorita nebo závažnost,
+aktuální stav chyby.
+Závažnost chyb:
+
+Critical ​– chyba blokuje klíčovou funkcionalitu nebo znemožňuje další testování,
+Major ​– chyba významně omezuje funkčnost systému, ale existuje možné obejití,
+Minor ​– chyba má menší dopad na funkčnost nebo se týká vizuálních či drobných nedostatků.
+Typické stavy chyb:
+
+New
+Open
+In Progress
+Fixed
+Retest
+Closed
+10. Reporting
+
+Průběh testování bude pravidelně komunikován v rámci týmu během sprintu.
+
+Reporting může zahrnovat:
+
+počet provedených testů,
+počet úspěšných, neúspěšných a blokovaných testů,
+seznam otevřených chyb,
+stav kritických problémů,
+výsledky retestu,
+připravenost funkcionality pro review nebo release.
+V agilním týmu probíhá reporting průběžně zejména během:
+
+daily stand-up,
+sprint review,
+retrospektivy,
+případně formou krátkého test summary na konci sprintu.
+11. Tooling
+
+Pro podporu testování mohou být využity následující nástroje:
+
+nástroj pro správu úkolů a chyb,
+repozitář zdrojového kódu,
+nástroj pro správu testovacích případů,
+nástroje pro API testování,
+případně nástroje pro automatizaci testů.
+Konkrétní výběr nástrojů závisí na prostředí a standardech projektu.
+
+12. Entry and Exit Criteria
+
+Entry Criteria
+
+Testování může začít, pokud jsou splněny následující podmínky:
+
+funkcionalita je implementována a nasazena do příslušného prostředí,
+jsou dostupné požadavky, user stories nebo acceptance criteria,
+jsou připravena potřebná testovací data,
+prostředí je dostupné a stabilní pro testování.
+Exit Criteria
+
+Testování dané funkcionality nebo sprintu může být ukončeno, pokud:
+
+byly provedeny všechny naplánované klíčové testy,
+kritické chyby byly opraveny nebo byly formálně akceptovány,
+byly provedeny potřebné retesty,
+byl dokončen relevantní rozsah regresního testování,
+tým má dostatek informací pro rozhodnutí o akceptaci výstupu sprintu.
+13. Rizika
+
+Mezi hlavní rizika testování patří:
+
+nejasně definované nebo měnící se požadavky,
+pozdní dodání funkcionality do testování,
+nestabilní testovací prostředí,
+nedostupnost navázaných služeb nebo integrací,
+nedostatek vhodných testovacích dat,
+časový tlak na konci sprintu.
+Tato rizika budou průběžně vyhodnocována v rámci sprintu a podle potřeby budou přijímána opatření ke snížení jejich dopadu.
+
+14. Shrnutí
+
+Testovací strategie pro ​uuManagementKit ​vychází z toho, že tester je součástí vývojového týmu a testování probíhá agilně a průběžně v rámci sprintů. Tento přístup podporuje rychlou komunikaci, včasné odhalení chyb a průběžné ověřování kvality dodávané funkcionality.
+
+Hlavním přínosem této strategie je propojení testování s každodenním vývojem, díky čemuž lze lépe reagovat na změny, průběžně ověřovat kvalitu řešení a zajistit, že aplikace odpovídá business požadavkům.
