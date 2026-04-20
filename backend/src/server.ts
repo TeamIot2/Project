@@ -11,6 +11,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { initDatabase, flushDatabase, hasData } from "./services/database";
 import { autoSeed } from "./services/autoSeed";
+import { ensureDemoDeviceRoster } from "./services/demoDeviceBootstrap";
 
 // Route modules
 import authRoutes from "./routes/auth";
@@ -104,6 +105,7 @@ async function start() {
     console.log("[Start] Empty database detected — running auto-seed...");
     autoSeed();
   }
+  ensureDemoDeviceRoster();
 
   app.listen(PORT, () => {
     console.log(`Backend running at http://localhost:${PORT}`);

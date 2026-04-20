@@ -20,6 +20,7 @@ import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
 import { apiGet } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
+import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import type { EnvironmentalReading, DeviceInfo } from "../types";
 import type { Translations } from "../i18n/translations";
 import { METRICS as metrics, METRIC_COLORS as sensorColors, SENSOR_LABEL_KEYS as sensorLabelKeys } from "../constants/chartColors";
@@ -141,6 +142,14 @@ function getTipSeverity(
 }
 
 /**
+ * Score used in per-metric mini gauges.
+ * Cap "good" at 99% so simulated values stay realistic.
+ */
+function qualityToMetricScore(quality: "good" | "moderate" | "poor"): number {
+  return quality === "good" ? 99 : quality === "moderate" ? 60 : 20;
+}
+
+/**
  * Calculate air quality score (0-100) from all sensor readings
  * against current environment thresholds.
  */
@@ -163,6 +172,21 @@ function calcAirQuality(
   scores.push(noiseQ === "good" ? 100 : noiseQ === "moderate" ? 60 : 20);
 
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+}
+
+/**
+ * Keep most modes in the green zone.
+ * Gym (sport) intentionally stays around 60-75% for demo contrast.
+ */
+function normalizeDashboardScoreByMode(score: number, mode: EnvironmentMode): number {
+  const boundedScore = Math.max(0, Math.min(100, score));
+  if (mode === "sport") {
+    return Math.round(60 + (boundedScore / 100) * 15);
+  }
+  if (mode === "factory") {
+    return boundedScore;
+  }
+  return Math.round(80 + (boundedScore / 100) * 20);
 }
 
 /**
@@ -193,10 +217,29 @@ function AirQualityGauge({ score, qualityLabel }: { score: number | null; qualit
           transform={`rotate(-90 ${center} ${center})`}
           className="gauge-progress"
         />
-        <text x={center} y={center - 6} textAnchor="middle" className="gauge-score" fill="var(--text-primary)">
-          {score !== null ? `${score}%` : "--"}
+        <text
+          x={center}
+          y={center - 1}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="gauge-score"
+          fill="var(--text-primary)"
+        >
+          {score !== null ? (
+            <>
+              <tspan>{score}</tspan>
+              <tspan className="gauge-score-percent" dx="1">%</tspan>
+            </>
+          ) : "--"}
         </text>
-        <text x={center} y={center + 16} textAnchor="middle" className="gauge-label" fill={color}>
+        <text
+          x={center}
+          y={center + 28}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="gauge-label"
+          fill={color}
+        >
           {qualityLabel}
         </text>
       </svg>
@@ -292,15 +335,19 @@ export default function Dashboard() {
   const { mode, getQuality, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
   const { theme } = useTheme();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isCs = locale === "cs";
+  const environmentTabLabel = isCs ? "Prostředí" : "Environment";
   const hr = useHeartRate();
 
   const {
     isMeasuring, setIsMeasuring,
+    manuallyStopped, setManuallyStopped,
     devicesExpanded, setDevicesExpanded,
     selectedDevices, setSelectedDevices,
     expandedDevice, setExpandedDevice,
     selectedDevice, setSelectedDevice,
+    deviceModeAssignments, setDeviceModeAssignments,
     showConfirmModal, setShowConfirmModal,
   } = useDashboard();
 
@@ -319,6 +366,8 @@ export default function Dashboard() {
   const [uptime, setUptime] = useState("");
   const [deviceSelectionConfirm, setDeviceSelectionConfirm] = useState<DeviceSelectionConfirmState | null>(null);
   const [disconnectWarning, setDisconnectWarning] = useState<DisconnectWarningState | null>(null);
+  const [showModeDeviceModal, setShowModeDeviceModal] = useState(false);
+  const [modeDeviceSelection, setModeDeviceSelection] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const location = useLocation();
   const figmaTab = location.pathname === "/history" ? "history"
@@ -331,56 +380,22 @@ export default function Dashboard() {
   }, [navigate]);
   const classicDeviceSelectionRef = useRef<HTMLDivElement | null>(null);
   const figmaMeasureDevicesRef = useRef<HTMLDivElement | null>(null);
-  const scrollToModeDeviceSelection = useCallback(() => {
-    setDevicesExpanded(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const wrappers = [figmaMeasureDevicesRef.current, classicDeviceSelectionRef.current];
-        const wrapper = wrappers.find((node) => node && node.getClientRects().length > 0);
-        if (!wrapper) return;
-
-        // Scroll to the first visible device row (not just wrapper top) and keep a small top gap.
-        const firstDeviceRow = wrapper.querySelector<HTMLElement>(".figma-device-group, .device-expand-row");
-        const target = firstDeviceRow ?? wrapper;
-        const inMobilePanel = Boolean(target.closest(".mobile-panel"));
-        const isMobileViewport = window.matchMedia("(max-width: 959px)").matches;
-        const mobileLike = inMobilePanel || isMobileViewport;
-        const topGapPx = mobileLike ? 10 : 8;
-
-        const mainWrapper = target.closest<HTMLElement>(".main-wrapper");
-        if (
-          mainWrapper
-          && mainWrapper.scrollHeight > mainWrapper.clientHeight + 1
-          && /auto|scroll/.test(window.getComputedStyle(mainWrapper).overflowY)
-        ) {
-          const containerRect = mainWrapper.getBoundingClientRect();
-          const targetTopInContainer = target.getBoundingClientRect().top - containerRect.top + mainWrapper.scrollTop;
-          const nextTop = Math.max(0, targetTopInContainer - topGapPx);
-          mainWrapper.scrollTo({ top: nextTop, behavior: "smooth" });
-          return;
-        }
-
-        const header = document.querySelector<HTMLElement>(".app-header");
-        const headerHeight = header?.getBoundingClientRect().height ?? 0;
-        const targetTopInDocument = window.scrollY + target.getBoundingClientRect().top;
-        const nextTop = Math.max(0, targetTopInDocument - headerHeight - topGapPx);
-        window.scrollTo({ top: nextTop, behavior: "smooth" });
-      });
-    });
-  }, [setDevicesExpanded]);
+  const getDisplayName = useCallback(
+    (device: Pick<DeviceInfo, "device_id" | "name">) => getDisplayDeviceName(device, t),
+    [t]
+  );
 
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
   const FIGMA_SIDE_CARD_WIDTH = 228;
-  const forcedModeWithoutDeviceForTesting: EnvironmentMode = "greenhouse";
 
   const isDeviceEnabledForMode = useCallback(
-    (_deviceId: string, envMode: EnvironmentMode) => {
-      // Test override:
-      // - "greenhouse" behaves as mode with no assigned devices
-      // - all other modes behave as assigned/connected
-      return envMode !== forcedModeWithoutDeviceForTesting;
+    (deviceId: string, envMode: EnvironmentMode) => {
+      const assignedModes = deviceModeAssignments[deviceId];
+      // Missing assignment means no participation until explicitly assigned in Devices tab.
+      if (!assignedModes || assignedModes.length === 0) return false;
+      return assignedModes.includes(envMode);
     },
-    [forcedModeWithoutDeviceForTesting]
+    [deviceModeAssignments]
   );
   const eligibleDeviceIdsForMode = useMemo(
     () =>
@@ -389,6 +404,11 @@ export default function Dashboard() {
         .map((d) => d.device_id),
     [devices, isDeviceEnabledForMode, mode]
   );
+  const assignedDevicesForMode = useMemo(
+    () => devices.filter((d) => eligibleDeviceIdsForMode.includes(d.device_id)),
+    [devices, eligibleDeviceIdsForMode]
+  );
+  const hasNoAssignedDevicesForMode = devicesLoaded && eligibleDeviceIdsForMode.length === 0;
   const onlineEligibleDeviceIdsForMode = useMemo(
     () =>
       devices
@@ -396,17 +416,81 @@ export default function Dashboard() {
         .map((d) => d.device_id),
     [devices, eligibleDeviceIdsForMode]
   );
+  const selectableOnlineDeviceIdsForMode = onlineEligibleDeviceIdsForMode;
   const selectedOnlineDeviceIdsForMode = useMemo(
-    () => Array.from(selectedDevices).filter((deviceId) => onlineEligibleDeviceIdsForMode.includes(deviceId)),
-    [onlineEligibleDeviceIdsForMode, selectedDevices]
+    () => Array.from(selectedDevices).filter((deviceId) => selectableOnlineDeviceIdsForMode.includes(deviceId)),
+    [selectableOnlineDeviceIdsForMode, selectedDevices]
   );
-  const hasNoAssignedDevicesForMode = devicesLoaded && eligibleDeviceIdsForMode.length === 0;
+  const hasMultipleAssignedDevicesForMode = assignedDevicesForMode.length > 1;
+  const visibleAssignedDevicesForMode = useMemo(
+    () =>
+      hasMultipleAssignedDevicesForMode && !devicesExpanded
+        ? assignedDevicesForMode.slice(0, 1)
+        : assignedDevicesForMode,
+    [assignedDevicesForMode, devicesExpanded, hasMultipleAssignedDevicesForMode]
+  );
   const hasNoSelectedDevicesForMode = selectedOnlineDeviceIdsForMode.length === 0;
-  const isStartBlocked = !isMeasuring && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode);
+  const showModeWithoutDeviceCard = hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode;
+  const isStartBlocked = !isMeasuring && hasNoSelectedDevicesForMode;
+  const modeAssignableDevices = useMemo(
+    () => devices.filter((device) => device.status === "online"),
+    [devices]
+  );
+  const openModeDeviceModal = useCallback(() => {
+    const preselected = new Set<string>(
+      eligibleDeviceIdsForMode.filter((deviceId) =>
+        modeAssignableDevices.some((device) => device.device_id === deviceId)
+      )
+    );
+    setModeDeviceSelection(preselected);
+    setShowModeDeviceModal(true);
+  }, [eligibleDeviceIdsForMode, modeAssignableDevices]);
+  const closeModeDeviceModal = useCallback(() => {
+    setShowModeDeviceModal(false);
+    setModeDeviceSelection(new Set());
+  }, []);
+  const toggleModeDeviceInModal = useCallback((deviceId: string) => {
+    setModeDeviceSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(deviceId)) next.delete(deviceId);
+      else next.add(deviceId);
+      return next;
+    });
+  }, []);
+  const applyModeDeviceModalSelection = useCallback(() => {
+    if (modeDeviceSelection.size === 0) return;
+
+    setDeviceModeAssignments((prev) => {
+      const nextAssignments: Record<string, EnvironmentMode[]> = Object.fromEntries(
+        Object.entries(prev).map(([deviceId, modes]) => [deviceId, [...modes]])
+      );
+
+      for (const device of modeAssignableDevices) {
+        const currentModes = new Set(nextAssignments[device.device_id] ?? []);
+        if (modeDeviceSelection.has(device.device_id)) currentModes.add(mode);
+        else currentModes.delete(mode);
+
+        if (currentModes.size === 0) {
+          delete nextAssignments[device.device_id];
+          continue;
+        }
+        nextAssignments[device.device_id] = Array.from(currentModes);
+      }
+
+      return nextAssignments;
+    });
+
+    setShowModeDeviceModal(false);
+    setModeDeviceSelection(new Set());
+  }, [mode, modeAssignableDevices, modeDeviceSelection, setDeviceModeAssignments]);
 
   const requestMeasureToggle = useCallback(() => {
+    if (isMeasuring) {
+      setShowConfirmModal("stop");
+      return;
+    }
     if (isStartBlocked) return;
-    setShowConfirmModal(isMeasuring ? "stop" : "start");
+    setShowConfirmModal("start");
   }, [isMeasuring, isStartBlocked, setShowConfirmModal]);
 
   const applyDeviceSelectionChange = useCallback(
@@ -440,7 +524,7 @@ export default function Dashboard() {
 
   const requestDeviceSelectionToggle = useCallback(
     (device: DeviceInfo) => {
-      if (!eligibleDeviceIdsForMode.includes(device.device_id)) return;
+      if (!selectableOnlineDeviceIdsForMode.includes(device.device_id)) return;
       if (device.status !== "online") return;
 
       const isChecked = selectedDevices.has(device.device_id);
@@ -454,7 +538,7 @@ export default function Dashboard() {
       if (shouldSelect) {
         setDeviceSelectionConfirm({
           deviceId: device.device_id,
-          deviceName: device.name,
+          deviceName: getDisplayName(device),
           action: "select",
         });
         return;
@@ -466,11 +550,11 @@ export default function Dashboard() {
 
       setDeviceSelectionConfirm({
         deviceId: device.device_id,
-        deviceName: device.name,
+        deviceName: getDisplayName(device),
         action: selectedOnlineCount <= 1 ? "deselect_last" : "deselect",
       });
     },
-    [applyDeviceSelectionChange, devices, eligibleDeviceIdsForMode, isMeasuring, selectedDevices]
+    [applyDeviceSelectionChange, devices, getDisplayName, isMeasuring, selectableOnlineDeviceIdsForMode, selectedDevices]
   );
 
   const confirmDeviceSelectionToggle = useCallback(() => {
@@ -525,16 +609,16 @@ export default function Dashboard() {
 
   // Figma mode carousel definitions (style 16)
   const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Wind; gradient: string; bgImage: string }[] = [
-    { id: "sleep",      label: "Sleep",       icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
-    { id: "office",     label: "Office",      icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
-    { id: "school",     label: "School",      icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
-    { id: "outdoor",    label: "Outside",     icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
-    { id: "sport",      label: "Gym",         icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
-    { id: "factory",    label: "Factory",     icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
-    { id: "greenhouse", label: "Greenhouse",  icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
+    { id: "sleep",      label: t.env_sleep,      icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
+    { id: "office",     label: t.env_office,     icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
+    { id: "school",     label: t.env_school,     icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
+    { id: "outdoor",    label: t.env_outdoor,    icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
+    { id: "sport",      label: t.env_sport,      icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
+    { id: "factory",    label: t.env_factory,    icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
+    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
 
-  // Accent color for the active mode â€” drives tab/content border color
+  // Accent color for the active mode - drives tab/content border color
   const modeAccentColor: Record<string, string> = {
     sleep:      "#A78BFA",
     office:     "#38BDF8",
@@ -546,7 +630,7 @@ export default function Dashboard() {
   };
   const accentColor = modeAccentColor[mode] ?? "#FDE68A";
 
-  // Live clock â€” updates every second
+  // Live clock - updates every second
   const [liveClock, setLiveClock] = useState(() =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
   );
@@ -603,7 +687,10 @@ export default function Dashboard() {
           (deviceId) => !droppedActiveIds.includes(deviceId) && nextById.get(deviceId)?.status === "online"
         ).length;
 
-        const firstDroppedName = previousById.get(droppedActiveIds[0])?.name ?? droppedActiveIds[0];
+        const firstDropped = previousById.get(droppedActiveIds[0]);
+        const firstDroppedName = firstDropped
+          ? getDisplayName(firstDropped)
+          : droppedActiveIds[0];
         const stopAllMonitoring = remainingOnlineSelectedCount === 0;
         if (stopAllMonitoring) {
           setIsMeasuring(false);
@@ -628,6 +715,7 @@ export default function Dashboard() {
       setSelectedDevice,
       setSelectedDevices,
       setShowConfirmModal,
+      getDisplayName,
     ]
   );
 
@@ -639,16 +727,13 @@ export default function Dashboard() {
         setDevices(sortedDevices);
         const eligible = sortedDevices.filter((d) => isDeviceEnabledForMode(d.device_id, mode));
         const onlineEligible = eligible.filter((d) => d.status === "online");
-        const fallback = onlineEligible.length > 0
-          ? onlineEligible
-          : sortedDevices.filter((d) => d.status === "online");
 
-        if (fallback.length > 0 && !selectedDevice) {
-          setSelectedDevice(fallback[0].device_id);
+        if (onlineEligible.length > 0 && !selectedDevice) {
+          setSelectedDevice(onlineEligible[0].device_id);
         }
 
-        // Select all eligible devices for the active mode by default.
-        setSelectedDevices(new Set(fallback.map((d) => d.device_id)));
+        // Select only devices assigned to the active mode.
+        setSelectedDevices(new Set(onlineEligible.map((d) => d.device_id)));
       })
       .catch((err) => setError(err.message))
       .finally(() => setDevicesLoaded(true));
@@ -672,27 +757,30 @@ export default function Dashboard() {
       return;
     }
 
-    setSelectedDevices((prev) => {
-      const filtered = new Set<string>();
-      for (const id of prev) {
-        if (onlineEligibleDeviceIdsForMode.includes(id)) filtered.add(id);
-      }
-      return filtered;
-    });
+    setSelectedDevices(new Set(onlineEligibleDeviceIdsForMode));
 
     if (!onlineEligibleDeviceIdsForMode.includes(selectedDevice)) {
       setSelectedDevice(onlineEligibleDeviceIdsForMode[0] ?? "");
     }
   }, [devicesLoaded, eligibleDeviceIdsForMode, onlineEligibleDeviceIdsForMode, selectedDevice, setSelectedDevice, setSelectedDevices]);
 
-  // If selected mode has no assigned devices, force-stop measuring and close start confirmation.
+  // If selected mode has no selected online devices, force-stop measuring and close start confirmation.
   useEffect(() => {
-    if (!hasNoAssignedDevicesForMode) return;
+    if (!hasNoSelectedDevicesForMode) return;
     if (isMeasuring) {
       setIsMeasuring(false);
     }
     setShowConfirmModal((prev) => (prev === "start" ? null : prev));
-  }, [hasNoAssignedDevicesForMode, isMeasuring, setIsMeasuring, setShowConfirmModal]);
+  }, [hasNoSelectedDevicesForMode, isMeasuring, setIsMeasuring, setShowConfirmModal]);
+
+  // Auto-resume measuring when mode has an assigned online device
+  // unless the user explicitly stopped it.
+  useEffect(() => {
+    if (hasNoSelectedDevicesForMode) return;
+    if (!isMeasuring && !manuallyStopped) {
+      setIsMeasuring(true);
+    }
+  }, [hasNoSelectedDevicesForMode, isMeasuring, manuallyStopped, setIsMeasuring]);
 
   // Fetch readings when device changes
   const fetchData = useCallback(async () => {
@@ -792,7 +880,10 @@ export default function Dashboard() {
   }
 
   // Compute quality label for the gauge
-  const airQualityScore = currentReading ? calcAirQuality(currentReading, getQuality) : null;
+  const rawAirQualityScore = currentReading ? calcAirQuality(currentReading, getQuality) : null;
+  const airQualityScore = rawAirQualityScore === null
+    ? null
+    : normalizeDashboardScoreByMode(rawAirQualityScore, mode);
   const animatedScore = useAnimatedNumber(airQualityScore ?? 0, 800);
   const qualityLabel = airQualityScore === null
     ? t.quality_loading
@@ -934,6 +1025,19 @@ export default function Dashboard() {
     return `"${disconnectWarning.deviceName}" just disconnected (offline/error). Remaining active devices will continue collecting data.`;
   }, [disconnectWarning]);
 
+  const currentModeLabel = (() => {
+    const modeLabelById: Record<EnvironmentMode, string> = {
+      sleep: t.env_sleep,
+      office: t.env_office,
+      sport: t.env_sport,
+      outdoor: t.env_outdoor,
+      school: t.env_school,
+      factory: t.env_factory,
+      greenhouse: t.env_greenhouse,
+    };
+    return modeLabelById[mode] ?? mode;
+  })();
+
   if (loading && !currentReading) {
     return (
       <div className="dashboard-page">
@@ -955,7 +1059,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-page" data-env={mode}>
-      {/* Environment carousel â€” centered active card, looping (mobile only) */}
+      {/* Environment carousel - centered active card, looping (mobile only) */}
       <EnvironmentCarousel
         environments={activeEnvironmentDefs}
         activeId={mode}
@@ -1028,7 +1132,7 @@ export default function Dashboard() {
                   onClick={() => setSelectedDevice(d.device_id)}
                 >
                   <span className="room-chip-dot" style={{ background: d.status === "online" ? "var(--good)" : "var(--text-muted)" }} />
-                  {d.name}
+                  {getDisplayName(d)}
                 </button>
               </div>
             ))}
@@ -1074,13 +1178,13 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {hasNoAssignedDevicesForMode && (
+      {showModeWithoutDeviceCard && (
         <section className="mode-without-device-panel measuring-mode-warning" role="status" aria-live="polite">
           <p className="mode-without-device-text">{t.mode_without_device_message}</p>
           <button
             type="button"
             className="mode-without-device-action"
-            onClick={scrollToModeDeviceSelection}
+            onClick={openModeDeviceModal}
           >
             {t.mode_without_device_action}
           </button>
@@ -1133,34 +1237,42 @@ export default function Dashboard() {
         </button>
       </section>
 
-      {/* Device selection â€” expandable with sensor checkboxes */}
+      {/* Device selection - expandable with sensor checkboxes */}
+      <section className="air-quality-section">
+        <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
+        <div className="air-quality-info">
+          <h2>{t.air_quality}</h2>
+          <p className="text-secondary">
+            {t.air_quality_based_on}
+          </p>
+          <p className="last-update">
+            <Clock size={14} />
+            <span>{t.updated} {liveClock}</span>
+          </p>
+        </div>
+      </section>
+
       <div ref={classicDeviceSelectionRef} className="device-checkboxes-wrapper">
-        <button
-          className="devices-collapse-btn"
-          onClick={() => setDevicesExpanded(e => !e)}
-          aria-label={devicesExpanded ? "Collapse" : "Expand"}
-        >
-          <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
-            <ChevronDown size={14} />
-          </span>
-        </button>
-      <section className={`device-checkboxes ${!devicesExpanded ? "collapsed" : ""}`}>
-        {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
+        {hasMultipleAssignedDevicesForMode && (
+          <button
+            className="devices-collapse-btn"
+            onClick={() => setDevicesExpanded(e => !e)}
+            aria-label={devicesExpanded ? "Collapse" : "Expand"}
+          >
+            <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
+              <ChevronDown size={14} />
+            </span>
+          </button>
+        )}
+      <section className={`device-checkboxes ${hasMultipleAssignedDevicesForMode && !devicesExpanded ? "collapsed" : ""}`}>
+        {visibleAssignedDevicesForMode.map((d) => {
           const isChecked = selectedDevices.has(d.device_id);
           const isExpanded = expandedDevice === d.device_id;
-          const isSelectable = d.status === "online";
           return (
             <div key={d.device_id} className="device-expand-row">
               <div className="device-checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  disabled={!isSelectable}
-                  style={isSelectable ? {} : { cursor: "not-allowed" }}
-                  onChange={() => requestDeviceSelectionToggle(d)}
-                />
                 <Cpu size={14} className="device-checkbox-icon" />
-                <span className="device-checkbox-name">{d.name}</span>
+                <span className="device-checkbox-name">{getDisplayName(d)}</span>
                 <span
                   className="device-measuring-dot"
                   style={{
@@ -1216,21 +1328,6 @@ export default function Dashboard() {
           <p>{error}</p>
         </div>
       )}
-
-      {/* Air quality gauge */}
-      <section className="air-quality-section">
-        <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
-        <div className="air-quality-info">
-          <h2>{t.air_quality}</h2>
-          <p className="text-secondary">
-            {t.air_quality_based_on}
-          </p>
-          <p className="last-update">
-            <Clock size={14} />
-            <span>{t.updated} {liveClock}</span>
-          </p>
-        </div>
-      </section>
 
       {/* Sensor cards grid */}
       <section className="sensor-grid">
@@ -1290,7 +1387,7 @@ export default function Dashboard() {
               {metric.key === "co2_ppm" && recentReadings.length > 1 && (
                 <div className="sensor-featured-detail">
                   <span className="featured-context">
-                    {recentReadings[0]?.co2_ppm} â†’ {currentReading?.co2_ppm} ppm
+                    {recentReadings[0]?.co2_ppm} {" -> "} {currentReading?.co2_ppm} ppm
                   </span>
                 </div>
               )}
@@ -1437,7 +1534,7 @@ export default function Dashboard() {
       {/* ===== FIGMA DESKTOP LAYOUT (Style 16) ===== */}
       {activeStyle.id === 16 && (
         <div className="figma-desktop" style={{ "--figma-accent": accentColor } as React.CSSProperties}>
-          {/* Mode Carousel â€” 7 colorful cards */}
+          {/* Mode Carousel - 7 colorful cards */}
           <section className="figma-carousel">
             <button
               className="figma-arrow figma-arrow-left"
@@ -1449,7 +1546,7 @@ export default function Dashboard() {
               }}
               aria-label="Previous"
             >
-              â€ą
+              {"<"}
             </button>
 
             <div className="figma-carousel-track">
@@ -1496,7 +1593,7 @@ export default function Dashboard() {
               }}
               aria-label="Next"
             >
-              â€ş
+              {">"}
             </button>
           </section>
 
@@ -1513,7 +1610,7 @@ export default function Dashboard() {
 
           {/* Tab Navigation */}
           <nav className="figma-tabs">
-            <button className={`figma-tab ${figmaTab === "measure" ? "active" : ""}`} onClick={() => setFigmaTab("measure")}>{t.nav_dashboard}</button>
+            <button className={`figma-tab ${figmaTab === "measure" ? "active" : ""}`} onClick={() => setFigmaTab("measure")}>{environmentTabLabel}</button>
             <button className={`figma-tab ${figmaTab === "history" ? "active" : ""}`} onClick={() => setFigmaTab("history")}>{t.nav_history}</button>
             <button className={`figma-tab ${figmaTab === "devices" ? "active" : ""}`} onClick={() => setFigmaTab("devices")}>{t.nav_devices}</button>
             <button className={`figma-tab ${figmaTab === "settings" ? "active" : ""}`} onClick={() => setFigmaTab("settings")}>{t.nav_settings}</button>
@@ -1523,13 +1620,13 @@ export default function Dashboard() {
           <section className="figma-content">
             {figmaTab === "measure" && (
               <>
-                {hasNoAssignedDevicesForMode && (
+                {showModeWithoutDeviceCard && (
                   <div className="mode-without-device-panel figma-mode-warning" role="status" aria-live="polite">
                     <p className="mode-without-device-text">{t.mode_without_device_message}</p>
                     <button
                       type="button"
                       className="mode-without-device-action"
-                      onClick={scrollToModeDeviceSelection}
+                      onClick={openModeDeviceModal}
                     >
                       {t.mode_without_device_action}
                     </button>
@@ -1591,72 +1688,73 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Device list */}
-                <div ref={figmaMeasureDevicesRef} className="figma-devices-wrapper">
-                  <button
-                    className="figma-devices-collapse"
-                    onClick={() => setDevicesExpanded(e => !e)}
-                    aria-label={devicesExpanded ? "Collapse" : "Expand"}
-                  >
-                    <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
-                      <ChevronDown size={14} />
-                    </span>
-                  </button>
-                <div className={`figma-devices ${!devicesExpanded ? "collapsed" : ""}`}>
-                  {(devicesExpanded ? devices : devices.slice(0, 2)).map((d) => {
-                    const isSelectable = d.status === "online";
-                    return (
-                    <div key={d.device_id} className="figma-device-group">
-                      <div className="figma-device-row">
-                        <input
-                          type="checkbox"
-                          checked={selectedDevices.has(d.device_id)}
-                          disabled={!isSelectable}
-                          style={isSelectable ? {} : { cursor: "not-allowed" }}
-                          onChange={() => requestDeviceSelectionToggle(d)}
-                        />
-                        <Cpu size={16} className="figma-device-icon-chip" />
-                        <span className="figma-device-label">Device:</span>
-                        <span className="figma-device-name">{d.name}</span>
-                        <span className={`figma-device-status ${d.status === "online" ? "online" : d.status === "error" ? "error" : ""}`}>
-                          {d.status === "online" ? t.status_online : d.status === "error" ? "Error" : t.status_offline}
+                <div className="figma-monitor-summary">
+                  {/* Air quality gauge */}
+                  <div className="figma-gauge-section figma-gauge-section--large">
+                    <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
+                    <div className="figma-gauge-info">
+                      <h2>{t.air_quality}</h2>
+                      <p>{t.air_quality_based_on}</p>
+                    </div>
+                  </div>
+
+                  {/* Device list for currently selected mode */}
+                  <div ref={figmaMeasureDevicesRef} className="figma-devices-wrapper figma-devices-wrapper--summary">
+                    {hasMultipleAssignedDevicesForMode && (
+                      <button
+                        className="figma-devices-collapse"
+                        onClick={() => setDevicesExpanded(e => !e)}
+                        aria-label={devicesExpanded ? "Collapse" : "Expand"}
+                      >
+                        <span style={{ display: "inline-flex", transform: devicesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s" }}>
+                          <ChevronDown size={14} />
                         </span>
-                        <button
-                          className="figma-device-expand"
-                          onClick={() => setExpandedDevice(expandedDevice === d.device_id ? null : d.device_id)}
-                        >
-                          <ChevronDown size={16} className={`figma-chevron ${expandedDevice === d.device_id ? "open" : ""}`} />
-                        </button>
-                      </div>
-                      {expandedDevice === d.device_id && (
-                        <div className="figma-device-sensors">
-                          {[
-                            { hw: "MH-Z19B (CO2)", color: "#22C55E" },
-                            { hw: "BME280 (Temp)", color: "#3B82F6" },
-                            { hw: "BME280 (Humidity)", color: "#06B6D4" },
-                            { hw: "BME280 (Pressure)", color: "#8B5CF6" },
-                            { hw: "BH1750 (Light)", color: "#F59E0B" },
-                            { hw: "MAX9814 (Noise)", color: "#EF4444" },
-                          ].map(s => (
-                            <div key={s.hw} className="figma-sensor-row">
-                              <span className="figma-sensor-dot" style={{ background: s.color }} />
-                              <span>{s.hw}</span>
+                      </button>
+                    )}
+                    <div className={`figma-devices figma-mode-device-panel ${hasMultipleAssignedDevicesForMode && !devicesExpanded ? "collapsed" : ""}`}>
+                      {assignedDevicesForMode.length > 0 ? (
+                        visibleAssignedDevicesForMode.map((d) => (
+                        <div key={d.device_id} className="figma-device-group">
+                          <div className="figma-device-row">
+                            <Cpu size={16} className="figma-device-icon-chip" />
+                            <span className="figma-device-label">{t.device_label}:</span>
+                            <span className="figma-device-name">{getDisplayName(d)}</span>
+                            <span className={`figma-device-status ${d.status === "online" ? "online" : d.status === "error" ? "error" : ""}`}>
+                              {d.status === "online" ? t.status_online : d.status === "error" ? "Error" : t.status_offline}
+                            </span>
+                            <button
+                              className="figma-device-expand"
+                              onClick={() => {
+                                setExpandedDevice(expandedDevice === d.device_id ? null : d.device_id);
+                                setSelectedDevice(d.device_id);
+                              }}
+                            >
+                              <ChevronDown size={16} className={`figma-chevron ${expandedDevice === d.device_id ? "open" : ""}`} />
+                            </button>
+                          </div>
+                          {expandedDevice === d.device_id && (
+                            <div className="figma-device-sensors">
+                              {[
+                                { hw: "MH-Z19B (CO2)", color: "#22C55E" },
+                                { hw: "BME280 (Temp)", color: "#3B82F6" },
+                                { hw: "BME280 (Humidity)", color: "#06B6D4" },
+                                { hw: "BME280 (Pressure)", color: "#8B5CF6" },
+                                { hw: "BH1750 (Light)", color: "#F59E0B" },
+                                { hw: "MAX9814 (Noise)", color: "#EF4444" },
+                              ].map(s => (
+                                <div key={s.hw} className="figma-sensor-row">
+                                  <span className="figma-sensor-dot" style={{ background: s.color }} />
+                                  <span>{s.hw}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
+                      ))
+                      ) : (
+                        <div className="figma-mode-device-empty">{t.mode_without_device_message}</div>
                       )}
                     </div>
-                  );
-                  })}
-                </div>
-                </div>
-
-                {/* Air quality gauge */}
-                <div className="figma-gauge-section">
-                  <AirQualityGauge score={airQualityScore !== null ? Math.round(animatedScore) : null} qualityLabel={qualityLabel} />
-                  <div className="figma-gauge-info">
-                    <h2>{t.air_quality}</h2>
-                    <p>{t.air_quality_based_on}</p>
                   </div>
                 </div>
 
@@ -1679,7 +1777,7 @@ export default function Dashboard() {
                           <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
                         </div>
                         <SensorMiniGauge
-                          score={quality === "good" ? 100 : quality === "moderate" ? 60 : 20}
+                          score={qualityToMetricScore(quality)}
                           qualityLabel={getQualityLabel(quality)}
                           compact
                           scoreColor={theme === "dark" ? "#CBD5E1" : "#1E293B"}
@@ -1689,7 +1787,7 @@ export default function Dashboard() {
                   })}
                 </div>
 
-                {/* Heart Rate section — desktop */}
+                {/* Heart Rate section â€” desktop */}
                 <div className="figma-hr-row">
                   <div className="figma-sensor-card" style={{ borderTopColor: "#E11D48" }}>
                     <div className="figma-sensor-card-content">
@@ -1820,8 +1918,8 @@ export default function Dashboard() {
                     <div key={d.device_id} className="figma-device-group">
                       <div className="figma-device-row">
                         <Cpu size={16} className="figma-device-icon-chip" />
-                        <span className="figma-device-label">Device:</span>
-                        <span className="figma-device-name">{d.name}</span>
+                        <span className="figma-device-label">{t.device_label}:</span>
+                        <span className="figma-device-name">{getDisplayName(d)}</span>
                         <input
                           type="checkbox"
                           checked={selectedDevices.has(d.device_id)}
@@ -1944,14 +2042,64 @@ export default function Dashboard() {
         </div>
       )}
 
+      {showModeDeviceModal && (
+        <div className="modal-overlay" onClick={closeModeDeviceModal}>
+          <div className="modal-card mode-device-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mode-device-modal-title">
+              {isCs ? `Vyberte zařízení pro: ${currentModeLabel}` : `Choose devices for: ${currentModeLabel}`}
+            </h3>
+            <p className="mode-device-modal-subtitle">
+              {isCs
+                ? "Vyberte z online zařízení, která se mají přiřadit k tomuto prostředí."
+                : "Select online devices to assign to this environment."}
+            </p>
+
+            <div className="mode-device-modal-list" role="listbox" aria-label={isCs ? "Výběr zařízení" : "Device selection"}>
+              {modeAssignableDevices.length === 0 ? (
+                <p className="text-secondary mode-device-modal-empty">
+                  {isCs ? "Momentálně nejsou dostupná žádná online zařízení." : "No online devices are currently available."}
+                </p>
+              ) : (
+                modeAssignableDevices.map((device) => {
+                  const checked = modeDeviceSelection.has(device.device_id);
+                  return (
+                    <label key={device.device_id} className={`mode-device-modal-option ${checked ? "active" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleModeDeviceInModal(device.device_id)}
+                      />
+                      <span className="mode-device-modal-name">{getDisplayName(device)}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={closeModeDeviceModal}>
+                {t.confirm_cancel}
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={modeDeviceSelection.size === 0}
+                onClick={applyModeDeviceModalSelection}
+              >
+                {isCs ? "Přiřadit" : "Assign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation modal */}
       {showConfirmModal && (
         <div className="modal-overlay" onClick={() => setShowConfirmModal(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">
               {showConfirmModal === "stop"
-                ? "Are you sure you want to stop collecting all data until you turn monitoring on again?"
-                : t.confirm_start}
+                ? `${t.confirm_stop_for}: ${currentModeLabel}?`
+                : `${t.confirm_start_for}: ${currentModeLabel}?`}
             </p>
             <div className="modal-actions">
               <button
@@ -1962,10 +2110,12 @@ export default function Dashboard() {
               </button>
               <button
                 className={`btn ${showConfirmModal === "stop" ? "btn-danger" : "btn-primary"}`}
-                disabled={showConfirmModal === "start" && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode)}
+                disabled={showConfirmModal === "start" && hasNoSelectedDevicesForMode}
                 onClick={() => {
-                  if (showConfirmModal === "start" && (hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode)) return;
-                  setIsMeasuring(showConfirmModal === "start");
+                  if (showConfirmModal === "start" && hasNoSelectedDevicesForMode) return;
+                  const starting = showConfirmModal === "start";
+                  setIsMeasuring(starting);
+                  setManuallyStopped(!starting);
                   setShowConfirmModal(null);
                 }}
               >
@@ -2016,3 +2166,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-﻿// Settings page: profile, preferences, unified evaluation modes, thresholds, security
+﻿// Settings page: profile, preferences, unified environments, thresholds, security
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -256,38 +256,38 @@ export default function Settings() {
 
   const modeCards: Record<string, { label: string; desc: string; bgImage: string }> = {
     sleep: {
-      label: "Sleep",
-      desc: isCs ? "Optimalni podminky pro spanek a regeneraci." : "Optimal conditions for sleep and recovery.",
+      label: t.env_sleep,
+      desc: t.env_sleep_desc,
       bgImage: "/images/silent/silent_06_bedroom.png",
     },
     office: {
-      label: "Office",
-      desc: isCs ? "Podpora soustredeni a produktivity." : "Support focus and productivity.",
+      label: t.env_office,
+      desc: t.env_office_desc,
       bgImage: "/images/silent/silent_07_office.png",
     },
     sport: {
-      label: "Gym",
-      desc: isCs ? "Podminky pro fyzickou aktivitu." : "Conditions for physical activity.",
+      label: t.env_sport,
+      desc: t.env_sport_desc,
       bgImage: "/images/silent/silent_02_gym.png",
     },
     outdoor: {
-      label: "Outside",
-      desc: isCs ? "Venkovni mestske nebo prirodni prostredi." : "Outdoor urban or natural environment.",
+      label: t.env_outdoor,
+      desc: t.env_outdoor_desc,
       bgImage: "/images/silent/silent_03_nature.png",
     },
     school: {
-      label: "School",
-      desc: isCs ? "Podminky pro uceni a vyuku." : "Conditions for learning and teaching.",
+      label: t.env_school,
+      desc: t.env_school_desc,
       bgImage: "/images/silent/silent_01_classroom.png",
     },
     factory: {
-      label: "Factory",
-      desc: isCs ? "Prumyslove a vyrobni prostredi." : "Industrial and manufacturing environment.",
+      label: t.env_factory,
+      desc: t.env_factory_desc,
       bgImage: "/images/silent/silent_08_factory.png",
     },
     greenhouse: {
-      label: "Greenhouse",
-      desc: isCs ? "Optimalni klima pro pestovani rostlin." : "Optimal climate for growing plants.",
+      label: t.env_greenhouse,
+      desc: t.env_greenhouse_desc,
       bgImage: "/images/silent/silent_04_greenhouse.png",
     },
   };
@@ -309,7 +309,7 @@ export default function Settings() {
     const customCards: ModeCardMeta[] = customModes.map((customMode, index) => ({
       id: customMode.id,
       label: customMode.name,
-      desc: customMode.description ?? (isCs ? "Vlastni rezim pro vlastni pravidla mereni." : "Custom mode with your own measurement rules."),
+      desc: customMode.description ?? (isCs ? "Vlastní prostředí s vlastními pravidly měření." : "Custom environment with your own measurement rules."),
       bgImage: customMode.bgImage ?? CREATE_MODE_IMAGE_OPTIONS[index % CREATE_MODE_IMAGE_OPTIONS.length],
       isCustom: true,
     }));
@@ -319,10 +319,10 @@ export default function Settings() {
       ...customCards,
       {
         id: CREATE_MODE_ID,
-        label: isCs ? "Vytvorit novy rezim" : "Create new mode",
+        label: isCs ? "Nové prostředí" : "New environment",
         desc: isCs
-          ? "Pridat novou karticku modu s vlastnimi hodnotami a preferencemi."
-          : "Add a new mode card with your own values and preferences.",
+          ? "Přidat novou kartu prostředí s vlastními hodnotami a preferencemi."
+          : "Add a new environment card with your own values and preferences.",
         isCreate: true,
       },
     ];
@@ -389,7 +389,7 @@ export default function Settings() {
       [modeId]: thresholdsToPoints(sourceThresholds),
     }));
     setModeSettingsMessage(
-      isCs ? "Hodnoty režimu byly resetovány na výchozí." : "Mode values were reset to defaults."
+      isCs ? "Hodnoty prostředí byly resetovány na výchozí." : "Environment values were reset to defaults."
     );
   }
 
@@ -399,7 +399,7 @@ export default function Settings() {
 
     if (modeId === CREATE_MODE_ID) {
       if (!newModeName.trim()) {
-        setModeSettingsMessage(isCs ? "Zadejte nazev noveho rezimu." : "Enter a name for the new mode.");
+        setModeSettingsMessage(isCs ? "Zadejte název nového prostředí." : "Enter a name for the new environment.");
         return;
       }
 
@@ -412,7 +412,7 @@ export default function Settings() {
         {
           id: newCustomModeId,
           name: newModeName.trim().slice(0, 50),
-          description: isCs ? "Uzivatelsky vytvoreny vyhodnocovaci rezim." : "User-created evaluation mode.",
+          description: isCs ? "Uživatelsky vytvořené prostředí." : "User-created environment.",
           bgImage: newModeImage,
           focusMetric: "co2_ppm",
           intervalSec: 60,
@@ -446,7 +446,7 @@ export default function Settings() {
       setExpandedModeId(newCustomModeId);
       setNewModeName("");
       setNewModeImage(CREATE_MODE_IMAGE_OPTIONS[nextImageIndex]);
-      setModeSettingsMessage(isCs ? "Novy rezim byl vytvoren." : "New mode was created.");
+      setModeSettingsMessage(isCs ? "Nové prostředí bylo vytvořeno." : "New environment was created.");
       return;
     }
 
@@ -461,7 +461,7 @@ export default function Settings() {
         })
       );
       setModeSettingsMessage(
-        isCs ? "Hodnoty režimu byly uloženy lokálně." : "Mode values were saved locally."
+        isCs ? "Hodnoty prostředí byly uloženy lokálně." : "Environment values were saved locally."
       );
     } catch {
       setModeSettingsMessage(t.storage_error);
@@ -471,14 +471,14 @@ export default function Settings() {
   return (
     <div className="settings-page">
       <div className="page-header">
-        <h1>{isCs ? "Vyhodnocovací režimy" : "Evaluation modes"}</h1>
+        <h1>{isCs ? "Prostředí" : "Environments"}</h1>
       </div>
 
       <section className="card settings-section">
         <p className="text-secondary" style={{ marginBottom: "0.75rem" }}>
           {isCs
-            ? "Klikněte na kartu režimu. Pod ní se rozbalí jeho individuální nastavení a prahy, které můžete upravit."
-            : "Click a mode card to expand its individual settings and thresholds, then edit its values."}
+            ? "Klikněte na kartu prostředí. Pod ní se rozbalí jeho individuální nastavení a prahy, které můžete upravit."
+            : "Click an environment card to expand its individual settings and thresholds, then edit its values."}
         </p>
         <div className="modes-grid">
           {unifiedModeCards.map((card) => {
@@ -506,8 +506,8 @@ export default function Settings() {
               <div className="mode-editor-title-row">
                 <h3 className="mode-editor-title">
                   {isCs
-                    ? `Nastavení režimu: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`
-                    : `Mode settings: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`}
+                    ? `Nastavení prostředí: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`
+                    : `Environment settings: ${activeExpandedCard?.label ?? (expandedCustomMode?.name ?? expandedModeId)}`}
                 </h3>
                 {expandedModeId !== CREATE_MODE_ID && (
                   isFavorite(expandedModeId) ? (
@@ -528,14 +528,14 @@ export default function Settings() {
                 )}
               </div>
               <p className="mode-editor-description">
-                {activeExpandedCard?.desc ?? (isCs ? "Upravte hodnoty podle vasich potreb." : "Adjust values to match your needs.")}
+                {activeExpandedCard?.desc ?? (isCs ? "Upravte hodnoty podle vašich potřeb." : "Adjust values to match your needs.")}
               </p>
             </div>
 
             {isCreateEditorExpanded && (
               <div className="mode-create-fields">
                 <div className="form-group">
-                  <label className="form-label">{isCs ? "Nazev noveho rezimu" : "New mode name"}</label>
+                  <label className="form-label">{isCs ? "Název nového prostředí" : "New environment name"}</label>
                   <input
                     className="form-input"
                     value={newModeName}
@@ -612,7 +612,7 @@ export default function Settings() {
                 {isCs ? "Uložit hodnoty" : "Save values"}
               </button>
               <button className="btn btn-outline btn-sm mode-editor-action-btn" onClick={() => resetModeEditor(expandedModeId)}>
-                {isCs ? "Resetovat režim" : "Reset mode"}
+                {isCs ? "Resetovat prostředí" : "Reset environment"}
               </button>
               {modeSettingsMessage && <p className="mode-editor-note">{modeSettingsMessage}</p>}
             </div>
@@ -852,3 +852,4 @@ export default function Settings() {
     </div>
   );
 }
+

@@ -33,13 +33,13 @@ interface DeviceConfig {
 }
 
 const NOW = new Date();
-const TWO_HOURS_AGO = new Date(NOW.getTime() - 2 * 60 * 60 * 1000);
 
 const DEVICE_CONFIGS: DeviceConfig[] = [
-  { info: { device_id: "esp32-001", name: "Living Room", location: "Living Room", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 3.95 }, seed: 42, batteryStart: 4.2, tempOffset: 0.5, co2Scale: 1.0 },
+  { info: { device_id: "esp32-001", name: "Gym", location: "Gym", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 3.95 }, seed: 42, batteryStart: 4.2, tempOffset: 0.5, co2Scale: 1.0 },
   { info: { device_id: "esp32-002", name: "Office", location: "Office - 2nd Floor", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 4.02 }, seed: 137, batteryStart: 4.15, tempOffset: -0.3, co2Scale: 1.2 },
-  { info: { device_id: "esp32-003", name: "Bedroom", location: "Bedroom", last_seen: TWO_HOURS_AGO.toISOString(), status: "offline" as DeviceStatus, firmware_version: "1.1.3", battery_v: 3.42 }, seed: 256, batteryStart: 4.1, tempOffset: -0.8, co2Scale: 0.8 },
-  { info: { device_id: "esp32-004", name: "Garage", location: "Garage", last_seen: TWO_HOURS_AGO.toISOString(), status: "error" as DeviceStatus, firmware_version: "1.0.0", battery_v: 0 }, seed: 999, batteryStart: 0, tempOffset: 0, co2Scale: 1 },
+  { info: { device_id: "esp32-003", name: "Bedroom", location: "Bedroom", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.1.3", battery_v: 3.82 }, seed: 256, batteryStart: 4.1, tempOffset: -0.8, co2Scale: 0.8 },
+  { info: { device_id: "esp32-004", name: "Greenhouse", location: "Greenhouse", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.0.0", battery_v: 3.88 }, seed: 999, batteryStart: 4.05, tempOffset: 1.2, co2Scale: 0.9 },
+  { info: { device_id: "esp32-005", name: "School", location: "School", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.1", battery_v: 4.01 }, seed: 512, batteryStart: 4.18, tempOffset: 0.1, co2Scale: 1.1 },
 ];
 
 const DAYS = 30;

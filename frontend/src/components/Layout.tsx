@@ -76,13 +76,13 @@ export default function Layout() {
     : "measure";
   const showPersistentFigmaDesktop = activeStyle.id === 16 && isDesktopUI && panelType !== "mobile" && figmaTab !== "measure";
   const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Moon; gradient: string; bgImage: string }[] = [
-    { id: "sleep",      label: "Sleep",      icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
-    { id: "office",     label: "Office",     icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
-    { id: "school",     label: "School",     icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
-    { id: "outdoor",    label: "Outside",    icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
-    { id: "sport",      label: "Gym",        icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
-    { id: "factory",    label: "Factory",    icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
-    { id: "greenhouse", label: "Greenhouse", icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
+    { id: "sleep",      label: t.env_sleep,      icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
+    { id: "office",     label: t.env_office,     icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
+    { id: "school",     label: t.env_school,     icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
+    { id: "outdoor",    label: t.env_outdoor,    icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
+    { id: "sport",      label: t.env_sport,      icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
+    { id: "factory",    label: t.env_factory,    icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
+    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
   const modeAccentColor: Record<string, string> = {
     sleep: "#A78BFA",

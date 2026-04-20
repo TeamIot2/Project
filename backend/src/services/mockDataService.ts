@@ -1,7 +1,7 @@
 /**
  * Mock Data Service
  *
- * Generates realistic environmental sensor data for 3 devices over 30 days
+ * Generates realistic environmental sensor data for demo devices over 30 days
  * at 5-minute intervals using a seeded PRNG for reproducibility.
  */
 
@@ -59,14 +59,13 @@ interface DeviceConfig {
 }
 
 const NOW = new Date();
-const TWO_HOURS_AGO = new Date(NOW.getTime() - 2 * 60 * 60 * 1000);
 
 const DEVICE_CONFIGS: DeviceConfig[] = [
   {
     info: {
       device_id: "esp32-001",
-      name: "Living Room",
-      location: "Living Room",
+      name: "Gym",
+      location: "Gym",
       last_seen: NOW.toISOString(),
       status: "online" as DeviceStatus,
       firmware_version: "1.2.0",
@@ -97,10 +96,10 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
       device_id: "esp32-003",
       name: "Bedroom",
       location: "Bedroom",
-      last_seen: TWO_HOURS_AGO.toISOString(),
-      status: "offline" as DeviceStatus,
+      last_seen: NOW.toISOString(),
+      status: "online" as DeviceStatus,
       firmware_version: "1.1.3",
-      battery_v: 3.42,
+      battery_v: 3.82,
     },
     seed: 256,
     batteryStart: 4.1,
@@ -110,17 +109,32 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
   {
     info: {
       device_id: "esp32-004",
-      name: "Garage",
-      location: "Garage",
-      last_seen: TWO_HOURS_AGO.toISOString(),
-      status: "error" as DeviceStatus,
+      name: "Greenhouse",
+      location: "Greenhouse",
+      last_seen: NOW.toISOString(),
+      status: "online" as DeviceStatus,
       firmware_version: "1.0.0",
-      battery_v: 0,
+      battery_v: 3.88,
     },
     seed: 999,
-    batteryStart: 0,
-    tempOffset: 0,
-    co2Scale: 1,
+    batteryStart: 4.05,
+    tempOffset: 1.2,
+    co2Scale: 0.9,
+  },
+  {
+    info: {
+      device_id: "esp32-005",
+      name: "School",
+      location: "School",
+      last_seen: NOW.toISOString(),
+      status: "online" as DeviceStatus,
+      firmware_version: "1.2.1",
+      battery_v: 4.01,
+    },
+    seed: 512,
+    batteryStart: 4.18,
+    tempOffset: 0.1,
+    co2Scale: 1.1,
   },
 ];
 
@@ -262,7 +276,7 @@ function generateDeviceReadings(config: DeviceConfig): EnvironmentalReading[] {
 // In-Memory Data Store (generated at startup)
 // ============================================================
 
-console.log("[MockData] Generating 30 days of sensor data for 3 devices...");
+console.log(`[MockData] Generating 30 days of sensor data for ${DEVICE_CONFIGS.length} devices...`);
 const startGen = Date.now();
 
 /** All devices indexed by device_id */

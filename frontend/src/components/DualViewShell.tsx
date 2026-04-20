@@ -31,15 +31,19 @@ export default function DualViewShell({ Content }: DualViewShellProps) {
   useEffect(() => {
     if (!isDual) return;
 
+    const getMobileMainWrapper = () =>
+      document.querySelector<HTMLElement>(".dual-view-shell.dual .mobile-panel .main-wrapper");
+
     const syncMobileScrollWithPage = () => {
-      const mobileMainWrapper = document.querySelector<HTMLElement>(".dual-view-shell.dual .mobile-panel .main-wrapper");
+      const mobileMainWrapper = getMobileMainWrapper();
       if (!mobileMainWrapper) return;
       const pageScrollable = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const mobileScrollable = Math.max(0, mobileMainWrapper.scrollHeight - mobileMainWrapper.clientHeight);
-      if (pageScrollable === 0 || mobileScrollable === 0) {
+      if (mobileScrollable === 0) {
         mobileMainWrapper.scrollTop = 0;
         return;
       }
+      if (pageScrollable === 0) return;
       const ratio = Math.min(1, Math.max(0, window.scrollY / pageScrollable));
       mobileMainWrapper.scrollTop = ratio * mobileScrollable;
     };
@@ -49,8 +53,26 @@ export default function DualViewShell({ Content }: DualViewShellProps) {
       if (!target) return;
       const inMobilePanel = target.closest(".dual-view-shell.dual .mobile-panel");
       if (!inMobilePanel) return;
-      event.preventDefault();
-      window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+      const mobileMainWrapper = getMobileMainWrapper();
+      if (!mobileMainWrapper) return;
+
+      const pageScrollable = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const mobileScrollable = Math.max(0, mobileMainWrapper.scrollHeight - mobileMainWrapper.clientHeight);
+
+      if (pageScrollable > 0) {
+        event.preventDefault();
+        window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+        return;
+      }
+
+      if (mobileScrollable > 0) {
+        event.preventDefault();
+        const nextScrollTop = Math.min(
+          mobileScrollable,
+          Math.max(0, mobileMainWrapper.scrollTop + event.deltaY)
+        );
+        mobileMainWrapper.scrollTop = nextScrollTop;
+      }
     };
 
     syncMobileScrollWithPage();

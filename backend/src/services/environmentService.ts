@@ -10,8 +10,8 @@ import { EnvironmentPreset } from "../../../shared/types";
 const PRESETS: EnvironmentPreset[] = [
   {
     id: "sleep",
-    name: "Sleep / Meditation",
-    description: "Bedroom sleep and meditation quality monitoring",
+    name: "Bedroom",
+    description: "Bedroom environment monitoring",
     icon: "moon",
     thresholds: {
       co2_ppm: { good: [0, 600], moderate: [600, 1000] },
@@ -24,8 +24,8 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "office",
-    name: "School / Office",
-    description: "Work and study environment",
+    name: "Office",
+    description: "Office environment",
     icon: "briefcase",
     thresholds: {
       co2_ppm: { good: [0, 800], moderate: [800, 1200] },
@@ -38,8 +38,8 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "sport",
-    name: "Fitness / Manual Labor",
-    description: "Physical activity and manual labor environment",
+    name: "Gym",
+    description: "Gym environment",
     icon: "activity",
     thresholds: {
       co2_ppm: { good: [0, 1000], moderate: [1000, 1500] },
@@ -52,8 +52,8 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "outdoor",
-    name: "Town / Nature",
-    description: "Outdoor and urban environment monitoring",
+    name: "Garden",
+    description: "Garden environment monitoring",
     icon: "tree",
     thresholds: {
       co2_ppm: { good: [0, 500], moderate: [500, 800] },

@@ -87,8 +87,8 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
 const fallbackPresets: EnvironmentPreset[] = [
   {
     id: "sleep",
-    name: "Sleep",
-    description: "Optimized for sleeping",
+    name: "Bedroom",
+    description: "Bedroom environment monitoring",
     icon: "moon",
     thresholds: {
       co2_ppm: { good: [400, 600], moderate: [600, 1000] },
@@ -115,8 +115,8 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "sport",
-    name: "Sport",
-    description: "Optimized for physical activity",
+    name: "Gym",
+    description: "Gym environment monitoring",
     icon: "activity",
     thresholds: {
       co2_ppm: { good: [400, 1000], moderate: [1000, 1500] },
@@ -129,8 +129,8 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "outdoor",
-    name: "Outdoor",
-    description: "Outdoor monitoring",
+    name: "Garden",
+    description: "Garden environment monitoring",
     icon: "tree",
     thresholds: {
       co2_ppm: { good: [0, 500], moderate: [500, 800] },

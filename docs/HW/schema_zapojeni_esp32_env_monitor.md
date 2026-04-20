@@ -8,6 +8,15 @@ Tento návod je připravený pro:
 - **MAX9814** (hluk / mikrofon)
 - **8kanálový level shifter 5V ↔ 3.3V**
 
+## 0. Co k tomu patří
+
+Tohle jsou podpůrné části, ne senzory:
+
+- **Nepájivé pole 830** → rychlé prototypování bez pájení
+- **Micro USB datový kabel 1 m** → nahrání firmware, sériová komunikace a napájení ESP32
+- **Dupont vodiče** → propojení modulů a napájecích lišt
+- **Level shifter** → jen pro logické úrovně mezi 5V a 3.3V
+
 ---
 
 ## 1. Co znamenají sběrnice
@@ -38,18 +47,18 @@ Napájení:
 ## 3. Zapojení krok za krokem
 
 ### Krok 1 – připrav napájení
-Propoj země všech zařízení dohromady:
+Propoj země všech zařízení dohromady na nepájivém poli:
 
-- ESP32 `GND` → breadboard GND lišta
-- MH-Z19 `GND` → breadboard GND
-- BME280 `GND` → breadboard GND
-- BH1750 `GND` → breadboard GND
-- MAX9814 `GND` → breadboard GND
-- level shifter `GND` → breadboard GND
+- ESP32 `GND` → nepájivé pole GND lišta
+- MH-Z19 `GND` → nepájivé pole GND
+- BME280 `GND` → nepájivé pole GND
+- BH1750 `GND` → nepájivé pole GND
+- MAX9814 `GND` → nepájivé pole GND
+- level shifter `GND` → nepájivé pole GND
 
 Napájení:
-- ESP32 `3V3` → breadboard 3.3V lišta
-- ESP32 `5V` nebo `VIN` → breadboard 5V lišta
+- ESP32 `3V3` → nepájivé pole 3.3V lišta
+- ESP32 `5V` nebo `VIN` → nepájivé pole 5V lišta
 
 ---
 

@@ -1,4 +1,4 @@
-// Czech and English translations for Team2App
+﻿// Czech and English translations for Team2App
 
 export type Locale = "cs" | "en";
 
@@ -69,6 +69,12 @@ export interface Translations {
   device_name_label: string;
   device_name_placeholder: string;
   device_name_required: string;
+  device_label: string;
+  device_sim_gym: string;
+  device_sim_office: string;
+  device_sim_bedroom: string;
+  device_sim_greenhouse: string;
+  device_sim_school: string;
   connect_ready: string;
   location_label: string;
   location_placeholder: string;
@@ -119,6 +125,8 @@ export interface Translations {
   measuring_stop: string;
   confirm_stop: string;
   confirm_start: string;
+  confirm_start_for: string;
+  confirm_stop_for: string;
   confirm_yes: string;
   confirm_cancel: string;
   mode_without_device_message: string;
@@ -161,14 +169,14 @@ const cs: Translations = {
   nav_devices: "Zařízení",
   nav_settings: "Nastavení",
 
-  env_sleep: "Spánek / Meditace",
-  env_sleep_desc: "Monitorování kvality spánku",
-  env_office: "Kancelář / Škola",
-  env_office_desc: "Pracovní a studijní prostředí",
-  env_sport: "Fitness / Manuální práce",
-  env_sport_desc: "Fyzická aktivita a manuální práce",
-  env_outdoor: "Město / Příroda",
-  env_outdoor_desc: "Monitorování venkovního prostředí",
+  env_sleep: "Ložnice",
+  env_sleep_desc: "Monitorování ložnice a kvality spánku",
+  env_office: "Kancelář",
+  env_office_desc: "Kancelářské prostředí",
+  env_sport: "Fitko",
+  env_sport_desc: "Fitness prostředí",
+  env_outdoor: "Zahrada",
+  env_outdoor_desc: "Zahradní prostředí",
   env_school: "Škola",
   env_school_desc: "Školní prostředí",
   env_factory: "Továrna",
@@ -217,6 +225,12 @@ const cs: Translations = {
   device_name_label: "Název zařízení",
   device_name_placeholder: "např. Třída 2A",
   device_name_required: "Vyplňte název zařízení.",
+  device_label: "Zařízení",
+  device_sim_gym: "Posilovna",
+  device_sim_office: "Kancelář",
+  device_sim_bedroom: "Ložnice",
+  device_sim_greenhouse: "Skleník",
+  device_sim_school: "Škola",
   connect_ready: "Připojení nového zařízení je připraveno (demo flow).",
   location_label: "Místo",
   location_placeholder: "např. 2. patro",
@@ -263,10 +277,12 @@ const cs: Translations = {
   measuring_stop: "Zastavit",
   confirm_stop: "Opravdu chcete zastavit sběr dat a měření?",
   confirm_start: "Spustit sběr dat se všemi vybranými zařízeními?",
+  confirm_start_for: "Začít sbírat data pro",
+  confirm_stop_for: "Jste si jistí, že chcete přestat sbírat data pro",
   confirm_yes: "Ano",
   confirm_cancel: "Zrušit",
   mode_without_device_message: "Vybraný režim nemá zatím přiřazené žádné zařízení.",
-  mode_without_device_action: "Vyberte 1",
+  mode_without_device_action: "Vyberte zařízení",
 
   tip_ventilate: "Doporučujeme vyvětrat místnost",
   tip_temperature: "Teplota je mimo optimální rozsah",
@@ -300,14 +316,14 @@ const en: Translations = {
   nav_devices: "Devices",
   nav_settings: "Settings",
 
-  env_sleep: "Sleep / Meditation",
-  env_sleep_desc: "Bedroom sleep quality monitoring",
-  env_office: "Office / School",
-  env_office_desc: "Work and study environment",
-  env_sport: "Fitness / Manual Labor",
-  env_sport_desc: "Physical activity and manual labor",
-  env_outdoor: "Town / Nature",
-  env_outdoor_desc: "Outdoor environment monitoring",
+  env_sleep: "Bedroom",
+  env_sleep_desc: "Bedroom environment monitoring",
+  env_office: "Office",
+  env_office_desc: "Office environment",
+  env_sport: "Gym",
+  env_sport_desc: "Gym environment",
+  env_outdoor: "Garden",
+  env_outdoor_desc: "Garden environment monitoring",
   env_school: "School",
   env_school_desc: "School environment",
   env_factory: "Factory",
@@ -356,6 +372,12 @@ const en: Translations = {
   device_name_label: "Device name",
   device_name_placeholder: "e.g. Office sensor",
   device_name_required: "Enter a device name.",
+  device_label: "Device",
+  device_sim_gym: "Gym",
+  device_sim_office: "Office",
+  device_sim_bedroom: "Bedroom",
+  device_sim_greenhouse: "Greenhouse",
+  device_sim_school: "School",
   connect_ready: "New device connect flow is ready (demo mode).",
   location_label: "Location",
   location_placeholder: "e.g. 2nd floor",
@@ -402,6 +424,8 @@ const en: Translations = {
   measuring_stop: "Stop",
   confirm_stop: "Are you sure you want to stop collecting data?",
   confirm_start: "Start collecting data with all selected devices?",
+  confirm_start_for: "Start collecting data for",
+  confirm_stop_for: "Are you sure you want to stop collecting data for",
   confirm_yes: "Yes",
   confirm_cancel: "Cancel",
   mode_without_device_message: "Selected mode has no assigned devices yet.",

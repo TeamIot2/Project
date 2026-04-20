@@ -19,7 +19,9 @@ import type { EnvironmentalReading, DeviceInfo, EnvironmentMode } from "../types
 import { ChevronDown, Cpu, Wind, Thermometer, Droplets, Sun, Volume2, Activity, Co2Molecule, Moon, Briefcase } from "../components/Icons";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { formatLocalDate, formatLocalTime } from "../utils/dateTime";
+import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
+import { useDashboard } from "../contexts/DashboardContext";
 import EnvironmentCarousel from "../components/EnvironmentCarousel";
 import { usePanelType } from "../components/DualViewShell";
 import { METRICS as metrics, SENSOR_LABEL_KEYS as sensorLabelKeys, resolveColor } from "../constants/chartColors";
@@ -64,16 +66,6 @@ const timeRanges = [
   { label: "1m", hours: 720 },
   { label: "1y", hours: 8760 },
 ];
-
-const carouselModeLabels: Record<EnvironmentMode, string> = {
-  sleep: "Sleep",
-  office: "Office",
-  sport: "Gym",
-  outdoor: "Outside",
-  school: "School",
-  factory: "Factory",
-  greenhouse: "Greenhouse",
-};
 
 // Generate mock data so charts always have something to show
 function generateMockData(hours: number): Array<Record<string, unknown>> {
@@ -146,6 +138,7 @@ export default function History() {
   const { t } = useI18n();
   const { theme } = useTheme();
   const { mode, setEnvironment } = useEnvironment();
+  const { deviceModeAssignments } = useDashboard();
   const panelType = usePanelType();
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState("");
@@ -163,6 +156,16 @@ export default function History() {
   const [error, setError] = useState<string | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
 
+  const devicesForMode = useMemo(
+    () =>
+      devices.filter((device) => {
+        const assignedModes = deviceModeAssignments[device.device_id];
+        if (!assignedModes || assignedModes.length === 0) return false;
+        return assignedModes.includes(mode);
+      }),
+    [deviceModeAssignments, devices, mode]
+  );
+
   // Theme-aware chart colors
   const gridColor = theme === "dark" ? "#3D3A37" : "#F0EBE5";
   const axisColor = theme === "dark" ? "#706860" : "#9C9590";
@@ -176,12 +179,20 @@ export default function History() {
       .then((devs) => {
         const sortedDevices = sortDevicesByStatus(devs);
         setDevices(sortedDevices);
-        if (sortedDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(sortedDevices[0].device_id);
-        }
       })
       .catch((err) => setError(err.message));
   }, []); // Intentional: fetch device list once on mount only
+
+  useEffect(() => {
+    if (devicesForMode.length === 0) {
+      setSelectedDevice("");
+      return;
+    }
+
+    if (!devicesForMode.some((device) => device.device_id === selectedDevice)) {
+      setSelectedDevice(devicesForMode[0].device_id);
+    }
+  }, [devicesForMode, selectedDevice]);
 
   const customInterval = useMemo(() => {
     if (!customRangeActive) return null;
@@ -227,7 +238,11 @@ export default function History() {
 
   // Fetch readings when device or range changes
   useEffect(() => {
-    if (!selectedDevice) return;
+    if (!selectedDevice) {
+      setReadings([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -286,10 +301,14 @@ export default function History() {
   }, [chartData, mode]);
 
   // Fallback to mock data when no real data is available
-  const displayData = chartData.length > 0 ? chartData : generateMockData(effectiveRangeHours) as typeof chartData;
+  const displayData = useMemo(() => {
+    if (!selectedDevice) return [] as typeof chartData;
+    return chartData.length > 0 ? chartData : generateMockData(effectiveRangeHours) as typeof chartData;
+  }, [chartData, effectiveRangeHours, selectedDevice]);
 
   // Deviation data based on displayData
   const displayDeviationData = useMemo(() => {
+    if (displayData.length === 0) return [];
     if (chartData.length > 0) return deviationData;
     const ideals = idealValues[mode];
     return displayData.map((point) => {
@@ -364,14 +383,67 @@ export default function History() {
   const xAxisPadding = isMobile ? { left: 12, right: 12 } : { left: 0, right: 0 };
   const xAxisTickFontSize = isMobile ? 10 : 11;
   const carouselEnvs = [
-    { id: "sleep" as const, img: "/images/silent/silent_06_bedroom.png", label: carouselModeLabels.sleep, icon: Moon },
-    { id: "office" as const, img: "/images/silent/silent_07_office.png", label: carouselModeLabels.office, icon: Briefcase },
-    { id: "sport" as const, img: "/images/silent/silent_02_gym.png", label: carouselModeLabels.sport, icon: Activity },
-    { id: "outdoor" as const, img: "/images/silent/silent_03_nature.png", label: carouselModeLabels.outdoor, icon: Wind },
-    { id: "school" as const, img: "/images/silent/silent_01_classroom.png", label: carouselModeLabels.school, icon: Briefcase },
-    { id: "factory" as const, img: "/images/silent/silent_08_factory.png", label: carouselModeLabels.factory, icon: Activity },
-    { id: "greenhouse" as const, img: "/images/silent/silent_04_greenhouse.png", label: carouselModeLabels.greenhouse, icon: Sun },
+    { id: "sleep" as const, img: "/images/silent/silent_06_bedroom.png", label: t.env_sleep, icon: Moon },
+    { id: "office" as const, img: "/images/silent/silent_07_office.png", label: t.env_office, icon: Briefcase },
+    { id: "sport" as const, img: "/images/silent/silent_02_gym.png", label: t.env_sport, icon: Activity },
+    { id: "outdoor" as const, img: "/images/silent/silent_03_nature.png", label: t.env_outdoor, icon: Wind },
+    { id: "school" as const, img: "/images/silent/silent_01_classroom.png", label: t.env_school, icon: Briefcase },
+    { id: "factory" as const, img: "/images/silent/silent_08_factory.png", label: t.env_factory, icon: Activity },
+    { id: "greenhouse" as const, img: "/images/silent/silent_04_greenhouse.png", label: t.env_greenhouse, icon: Sun },
   ];
+  const deviceSelectorPanel = (
+    <div className="history-devices card devices-list figma-devices">
+      {devicesForMode.length === 0 && (
+        <p className="text-secondary" style={{ margin: "0.5rem 0.75rem 0.25rem" }}>
+          {t.mode_without_device_message}
+        </p>
+      )}
+      {devicesForMode.map((d) => (
+        <div key={d.device_id} className="figma-device-group">
+          <div className="figma-device-row">
+            <Cpu size={16} className="figma-device-icon-chip" />
+            <span className="figma-device-label">{t.device_label}:</span>
+            <span className="figma-device-name">{getDisplayDeviceName(d, t)}</span>
+            <button
+              className="figma-device-expand"
+              onClick={() => toggleExpand(d.device_id)}
+              aria-label={`Toggle sensors for ${getDisplayDeviceName(d, t)}`}
+            >
+              <ChevronDown size={16} className={`figma-chevron ${isDeviceExpanded(d.device_id) ? "open" : ""}`} />
+            </button>
+          </div>
+          {isDeviceExpanded(d.device_id) && (
+            <div className={`history-sensor-list ${selectedDevice !== d.device_id ? "sensors-inactive" : ""}`}>
+              {metrics.map((m) => {
+                const tKey = sensorLabelKeys[m.key];
+                const label = tKey ? (t[tKey] as string) : m.label;
+                return (
+                  <label key={m.key} className="history-sensor-item">
+                    <input
+                      id={`sensor-${d.device_id}-${m.key}`}
+                      type="checkbox"
+                      className={selectedDevice !== d.device_id && selectedSensors.has(m.key) ? "checkbox-gray" : ""}
+                      checked={selectedSensors.has(m.key)}
+                      onChange={() => {
+                        setSelectedSensors((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(m.key)) next.delete(m.key);
+                          else next.add(m.key);
+                          return next;
+                        });
+                      }}
+                    />
+                    {(() => { const Icon = sensorIconMap[m.icon] ?? Wind; return <span style={{ color: selectedDevice !== d.device_id ? "#9CA3AF" : resolveColor(m.color), display: "inline-flex", flexShrink: 0 }}><Icon size={14} /></span>; })()}
+                    <span>{label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="history-page">
@@ -388,11 +460,11 @@ export default function History() {
       {/* Controls bar */}
       <div className="history-controls">
         {/* Mobile heading */}
-        <h3 className="history-section-label history-mobile-heading">{t.time_window}</h3>
+        <h3 className="history-section-label history-mobile-heading">{`${t.time_window}:`}</h3>
         {/* Desktop headings row */}
         <div className="history-headings-row">
-          <h3 className="history-section-label">{t.time_window}</h3>
-          <h3 className="history-section-label history-custom-label">{t.custom_time_window}</h3>
+          <h3 className="history-section-label">{`${t.time_window}:`}</h3>
+          <h3 className="history-section-label history-custom-label">Custom:</h3>
         </div>
         <div className="history-range-row">
           <div className="time-range-selector">
@@ -504,57 +576,7 @@ export default function History() {
       </div>
 
       {/* Device & sensor selector */}
-      <div className="history-devices card devices-list figma-devices">
-        {devices.map((d) => (
-          <div key={d.device_id} className="figma-device-group">
-            <div className="figma-device-row">
-              <Cpu size={16} className="figma-device-icon-chip" />
-              <span className="figma-device-label">Device:</span>
-              <span className="figma-device-name">{d.name}</span>
-              <input
-                type="checkbox"
-                checked={selectedDevice === d.device_id}
-                onChange={() => setSelectedDevice(selectedDevice === d.device_id ? "" : d.device_id)}
-                aria-label={`Select device ${d.name}`}
-              />
-              <button
-                className="figma-device-expand"
-                onClick={() => toggleExpand(d.device_id)}
-              >
-                <ChevronDown size={16} className={`figma-chevron ${isDeviceExpanded(d.device_id) ? "open" : ""}`} />
-              </button>
-            </div>
-            {isDeviceExpanded(d.device_id) && (
-              <div className={`history-sensor-list ${selectedDevice !== d.device_id ? "sensors-inactive" : ""}`}>
-                {metrics.map((m) => {
-                  const tKey = sensorLabelKeys[m.key];
-                  const label = tKey ? (t[tKey] as string) : m.label;
-                  return (
-                    <label key={m.key} className="history-sensor-item">
-                      <input
-                        id={`sensor-${d.device_id}-${m.key}`}
-                        type="checkbox"
-                        className={selectedDevice !== d.device_id && selectedSensors.has(m.key) ? "checkbox-gray" : ""}
-                        checked={selectedSensors.has(m.key)}
-                        onChange={() => {
-                          setSelectedSensors((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(m.key)) next.delete(m.key);
-                            else next.add(m.key);
-                            return next;
-                          });
-                        }}
-                      />
-                      {(() => { const Icon = sensorIconMap[m.icon] ?? Wind; return <span style={{ color: selectedDevice !== d.device_id ? "#9CA3AF" : resolveColor(m.color), display: "inline-flex", flexShrink: 0 }}><Icon size={14} /></span>; })()}
-                      <span>{label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {!isMobile && deviceSelectorPanel}
 
       {/* Visualization mode selector */}
       <div className="history-options">
@@ -823,6 +845,7 @@ export default function History() {
           </ResponsiveContainer>
         </div>
       )}
+      {isMobile && deviceSelectorPanel}
     </div>
   );
 }

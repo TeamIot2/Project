@@ -10,6 +10,7 @@ import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { timeAgo } from "../utils/dateTime";
 import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
 import { DEVICE_SENSOR_FIELDS as sensorFields } from "../constants/chartColors";
+import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 
 const ALL_ENV_MODES: EnvironmentMode[] = [
   "sleep",
@@ -87,7 +88,8 @@ function DeviceRow({
     }
   }
 
-  const assignedModes = deviceModeAssignments[device.device_id] ?? ALL_ENV_MODES;
+  const assignedModes = deviceModeAssignments[device.device_id] ?? [];
+  const deviceDisplayName = getDisplayDeviceName(device, t);
   const modeLabels: Record<EnvironmentMode, string> = {
     sleep: t.env_sleep,
     office: t.env_office,
@@ -105,16 +107,17 @@ function DeviceRow({
 
   function toggleModeAssignment(targetMode: EnvironmentMode) {
     setDeviceModeAssignments((prev) => {
-      const current = new Set(prev[device.device_id] ?? ALL_ENV_MODES);
+      const current = new Set(prev[device.device_id] ?? []);
       if (current.has(targetMode)) current.delete(targetMode);
       else current.add(targetMode);
 
       const nextModes = ALL_ENV_MODES.filter((mode) => current.has(mode));
-      const next = { ...prev, [device.device_id]: nextModes };
+      const next = { ...prev };
 
-      // Full mode set is implicit default; keep storage compact.
-      if (nextModes.length === ALL_ENV_MODES.length) {
+      if (nextModes.length === 0) {
         delete next[device.device_id];
+      } else {
+        next[device.device_id] = nextModes;
       }
       return next;
     });
@@ -124,8 +127,8 @@ function DeviceRow({
     <div className="figma-device-group">
       <div className="figma-device-row">
         <Cpu size={16} className="figma-device-icon-chip" />
-        <span className="figma-device-label">Device:</span>
-        <span className="figma-device-name">{device.name}</span>
+        <span className="figma-device-label">{t.device_label}:</span>
+        <span className="figma-device-name">{deviceDisplayName}</span>
         <button
           className="figma-device-expand"
           onClick={() => toggleExpand(device.device_id)}
