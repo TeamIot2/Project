@@ -915,7 +915,7 @@ export default function Settings() {
                       />
                     </label>
                     <label className="mode-editor-input-group mode-editor-input-group-notification">
-                      <span>{isCs ? "Notifikovat při dosažení hodnoty" : "Notify when value is reached"}</span>
+                      <span>{isCs ? "NOTIFIKOVAT PŘI DOSAŽENÍ HODNOTY" : "Notify when value is reached"}</span>
                       <input
                         type="number"
                         className="form-input mode-editor-input mode-editor-input-notification"
