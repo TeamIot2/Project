@@ -15,13 +15,16 @@ type CustomMode = {
   autoStart: boolean;
 };
 
+type ModeMetaOverride = {
+  name?: string;
+  description?: string;
+};
+
+type ModeMetaOverrides = Record<string, ModeMetaOverride>;
+
 interface SettingsState {
   nickname: string;
   setNickname: (v: string) => void;
-  fullName: string;
-  setFullName: (v: string) => void;
-  phone: string;
-  setPhone: (v: string) => void;
   timezone: string;
   setTimezone: (v: string) => void;
   profileMessage: string | null;
@@ -34,6 +37,8 @@ interface SettingsState {
 
   customModes: CustomMode[];
   setCustomModes: React.Dispatch<React.SetStateAction<CustomMode[]>>;
+  modeMetaOverrides: ModeMetaOverrides;
+  setModeMetaOverrides: React.Dispatch<React.SetStateAction<ModeMetaOverrides>>;
   newModeName: string;
   setNewModeName: (v: string) => void;
   expandedModeId: string | null;
@@ -52,17 +57,81 @@ interface SettingsState {
 
 const SettingsStateContext = createContext<SettingsState | null>(null);
 
+function loadStoredCustomModes(): CustomMode[] {
+  try {
+    const raw = localStorage.getItem("customModes");
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((mode): mode is CustomMode => {
+        if (!mode || typeof mode !== "object") return false;
+        const candidate = mode as Partial<CustomMode>;
+        return (
+          typeof candidate.id === "string" &&
+          candidate.id.startsWith("custom-") &&
+          typeof candidate.name === "string" &&
+          typeof candidate.focusMetric === "string" &&
+          typeof candidate.intervalSec === "number" &&
+          ["low", "balanced", "high"].includes(candidate.sensitivity ?? "") &&
+          typeof candidate.autoStart === "boolean"
+        );
+      })
+      .map((mode) => ({
+        ...mode,
+        name: mode.name.trim().slice(0, 50),
+        description: mode.description?.trim().slice(0, 120),
+        bgImage: mode.bgImage,
+      }))
+      .filter((mode) => mode.name.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function loadStoredModeMetaOverrides(): ModeMetaOverrides {
+  try {
+    const raw = localStorage.getItem("modeMetaOverrides");
+    if (!raw) return {};
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    const result: ModeMetaOverrides = {};
+    for (const [modeId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const candidate = value as Record<string, unknown>;
+      let name = typeof candidate.name === "string" ? candidate.name.trim().slice(0, 50) : undefined;
+      let description = typeof candidate.description === "string" ? candidate.description.trim().slice(0, 120) : undefined;
+      if (modeId === "office") {
+        if (name === "Office" || name === "Kancelář") name = undefined;
+        if (description === "Office environment" || description === "Kancelářské prostředí") description = undefined;
+      }
+      if (name || description) {
+        result[modeId] = {
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+        };
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 export function SettingsStateProvider({ children }: { children: ReactNode }) {
   const [nickname, setNickname] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   const [notificationChannel, setNotificationChannel] = useState<NotificationChannel>("in_app");
   const [criticalAlertsEnabled, setCriticalAlertsEnabled] = useState(true);
 
-  const [customModes, setCustomModes] = useState<CustomMode[]>([]);
+  const [customModes, setCustomModes] = useState<CustomMode[]>(loadStoredCustomModes);
+  const [modeMetaOverrides, setModeMetaOverrides] = useState<ModeMetaOverrides>(loadStoredModeMetaOverrides);
   const [newModeName, setNewModeName] = useState("");
   const [expandedModeId, setExpandedModeId] = useState<string | null>(null);
 
@@ -85,6 +154,18 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("favoriteModes", JSON.stringify(favoriteModes));
     } catch { /* ignore */ }
   }, [favoriteModes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("customModes", JSON.stringify(customModes));
+    } catch { /* ignore */ }
+  }, [customModes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("modeMetaOverrides", JSON.stringify(modeMetaOverrides));
+    } catch { /* ignore */ }
+  }, [modeMetaOverrides]);
 
   const toggleFavoriteMode = useCallback((modeId: string) => {
     setFavoriteModes((prev) => {
@@ -147,13 +228,12 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
     <SettingsStateContext.Provider
       value={{
         nickname, setNickname,
-        fullName, setFullName,
-        phone, setPhone,
         timezone, setTimezone,
         profileMessage, setProfileMessage,
         notificationChannel, setNotificationChannel,
         criticalAlertsEnabled, setCriticalAlertsEnabled,
         customModes, setCustomModes,
+        modeMetaOverrides, setModeMetaOverrides,
         newModeName, setNewModeName,
         expandedModeId, setExpandedModeId,
         avatarPreview, handleAvatarChange, removeAvatar, avatarInputRef,

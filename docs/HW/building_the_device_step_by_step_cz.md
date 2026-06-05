@@ -9,9 +9,9 @@ Vychazi hlavne z:
 
 Dulezity stav projektu:
 
-- firmware v projektu zatim nebyl hotovy
-- pro prvni oziveni je proto pripraven testovaci sketch:
+- pro prvni oziveni i soucasne lokalni testovani je pripraven testovaci sketch:
   `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\firmware\esp32_sensor_smoke_test\esp32_sensor_smoke_test.ino`
+- tento sketch uz umi precist vsechny aktualne pouzite senzory a vypsat JSON pro gateway
 
 Tento sketch umi:
 
@@ -21,6 +21,7 @@ Tento sketch umi:
 - cist `MAX9814`
 - cist `MH-Z19` pres `UART`
 - po uspesnem precteni vsech senzoru vypsat i jeden radek JSON v projektu ocekavanem tvaru
+- ve zdrojovem kodu je aktualne nastaveny interval mereni `5000 ms`
 
 ## Aktualni stav prace
 
@@ -30,18 +31,27 @@ Hotovo:
 - `esp32 by Espressif Systems` je nainstalovany
 - knihovny `Adafruit BME280 Library`, `Adafruit Unified Sensor` a `BH1750` jsou nainstalovane
 - `ESP32 LoLin32` se hlasi pres USB jako `COM3`
-- testovaci sketch je nahrany do `ESP32`
+- testovaci sketch se zkompiluje pro `WEMOS LOLIN32` / `esp32:esp32:lolin32`
+- starsi verze testovaciho sketchu uz byla nahrana do `ESP32`
 - `Serial Monitor` funguje
+- `BME280` byl fyzicky oziven
+- `BH1750` byl pridan a cten pres stejnou `I2C` sbernici
+- `MAX9814` byl pridan a cten pres `GPIO34`
+- `level shifter` byl zapojen pro komunikaci `MH-Z19`
+- `MH-Z19` byl pridan a po zahrati vracel hodnoty `ppm`
+- `Node-RED` cte realna data z `COM3` a aktualne je posila na Railway backend
+- lokalni frontend v rezimu `Unicorn` pouziva realne zarizeni `esp32-001`
+- ostatni rezimy v aplikaci zustavaji mock/demo
+- frontend polling realnych hodnot je nastaven na `5 sekund`
+- Node-RED uz neposila davku po 6 merenich, ale posila kazde validni mereni hned
 
-Zatim nedodelano:
+Zatim nedodelano / pozor:
 
-- vhodne `Dupont vodice` pro spolehlive zapojeni
-- fyzicke oziveni `BME280`
-- pridani `BH1750`
-- pridani `MAX9814`
-- zapojeni `level shifteru`
-- zapojeni `MH-Z19`
-- prvni cisty JSON vystup ze vsech senzoru
+- pokud bude potreba znovu nahravat firmware, pri chybe `Wrong boot mode detected (0x13)` podrz tlacitko `BOOT`, dokud nezacne nahravani
+- JSON realne prichazi zhruba kazdych `5 sekund`
+- `Node-RED` posila kazde validni mereni hned na aktivni backend, aktualne na Railway
+- ve frontendu se hodnoty v rezimu `Unicorn` obnovuji v 5s rytmu
+- stale je vhodne zlepsit mechanickou spolehlivost zapojeni pomoci kvalitnich `Dupont vodicu`
 
 ## 1. Nez zacnes
 
@@ -162,7 +172,7 @@ Pred timto krokem:
 ### Co mas udelat po zapojeni
 
 1. znovu pripoj `USB`
-2. pockej asi `10 sekund`
+2. pockej asi `5-10 sekund`
 3. otevri `Serial Monitor`
 
 ### Jak poznas, ze je krok hotovy spravne

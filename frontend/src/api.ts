@@ -1,6 +1,7 @@
 // Centralized API client with auth token handling
 
-const API_BASE = import.meta.env.DEV ? "http://localhost:3001/api" : "/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ?? (import.meta.env.DEV ? "http://localhost:3001/api" : "/api");
 
 /**
  * Build a URL with query parameters.
@@ -15,6 +16,10 @@ function buildUrl(path: string, params?: Record<string, string | number | undefi
     });
   }
   return url.toString();
+}
+
+export function apiUrl(path: string, params?: Record<string, string | number | undefined>): string {
+  return buildUrl(path, params);
 }
 
 /**

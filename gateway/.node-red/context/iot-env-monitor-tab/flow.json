@@ -1,0 +1,55 @@
+{
+    "readingBuffer": [
+        {
+            "device_id": "esp32-001",
+            "co2_ppm": 605,
+            "temperature_c": 28.48,
+            "humidity_pct": 31.78,
+            "pressure_hpa": 987.99,
+            "light_lux": 2.5,
+            "sound_level_adc": 1383,
+            "sound_peak_adc": 1525,
+            "sound_rms_adc": 1384,
+            "sound_event": true,
+            "battery_v": 0,
+            "timestamp": "2026-06-03T21:09:15.891Z",
+            "gateway_id": "node-red-gw-01",
+            "source": "uart"
+        },
+        {
+            "device_id": "esp32-001",
+            "co2_ppm": 602,
+            "temperature_c": 28.48,
+            "humidity_pct": 31.78,
+            "pressure_hpa": 988,
+            "light_lux": 2.5,
+            "sound_level_adc": 1378,
+            "sound_peak_adc": 1632,
+            "sound_rms_adc": 1380,
+            "sound_event": true,
+            "battery_v": 0,
+            "timestamp": "2026-06-03T21:09:25.932Z",
+            "gateway_id": "node-red-gw-01",
+            "source": "uart"
+        },
+        {
+            "device_id": "esp32-001",
+            "co2_ppm": 597,
+            "temperature_c": 28.48,
+            "humidity_pct": 31.81,
+            "pressure_hpa": 988.01,
+            "light_lux": 2.5,
+            "sound_level_adc": 1381,
+            "sound_peak_adc": 1575,
+            "sound_rms_adc": 1382,
+            "sound_event": true,
+            "battery_v": 0,
+            "timestamp": "2026-06-03T21:09:35.977Z",
+            "gateway_id": "node-red-gw-01",
+            "source": "uart"
+        }
+    ],
+    "seq": 9736,
+    "monitoringEnabled": true,
+    "monitoringCommandSeq": 0
+}

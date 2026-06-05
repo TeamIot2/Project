@@ -4,12 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "bridge:serial": "node src/serial-to-backend.js",
+    "node-red": "node node_modules/node-red/red.js --userDir .node-red",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-red": "^4.1.8"
+    "node-red": "^4.1.8",
+    "serialport": "^12.0.0"
   }
 }

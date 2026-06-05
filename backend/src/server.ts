@@ -12,6 +12,39 @@ import * as fs from "fs";
 import { initDatabase, flushDatabase, hasData } from "./services/database";
 import { autoSeed } from "./services/autoSeed";
 import { ensureDemoDeviceRoster } from "./services/demoDeviceBootstrap";
+import {
+  ensureRealPresentationHistoryData,
+  ensurePersistentGymHistoryMockData,
+  removeSyntheticOfficeHistory,
+} from "./services/historyMockSeed";
+
+function loadLocalEnvFile(): void {
+  const candidates = [
+    path.resolve(process.cwd(), ".env.local"),
+    path.resolve(process.cwd(), "backend/.env.local"),
+    path.resolve(__dirname, "../.env.local"),
+    path.resolve(__dirname, "../../.env.local"),
+  ];
+  const envPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!envPath) return;
+
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const rawValue = trimmed.slice(separatorIndex + 1).trim();
+    if (process.env[key] !== undefined) continue;
+
+    process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
+  }
+}
+
+loadLocalEnvFile();
 
 // Route modules
 import authRoutes from "./routes/auth";
@@ -22,6 +55,15 @@ import environmentRoutes from "./routes/environments";
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const startTime = Date.now();
+
+function readBooleanEnv(name: string, defaultValue: boolean): boolean {
+  const rawValue = process.env[name];
+  if (rawValue === undefined) return defaultValue;
+  return !["0", "false", "no", "off"].includes(rawValue.trim().toLowerCase());
+}
+
+const AUTO_SEED_MOCK_DATA = readBooleanEnv("AUTO_SEED_MOCK_DATA", true);
+const BOOTSTRAP_DEMO_DEVICES = readBooleanEnv("BOOTSTRAP_DEMO_DEVICES", true);
 
 // ============================================================
 // Middleware
@@ -101,11 +143,22 @@ async function start() {
   await initDatabase();
 
   // Auto-seed with mock data if database is empty (e.g. fresh Railway deploy)
-  if (!hasData()) {
-    console.log("[Start] Empty database detected — running auto-seed...");
+  if (AUTO_SEED_MOCK_DATA && !hasData()) {
+    console.log("[Start] Empty database detected - running auto-seed...");
     autoSeed();
+  } else if (!AUTO_SEED_MOCK_DATA && !hasData()) {
+    console.log("[Start] Empty database detected and mock auto-seed is disabled.");
   }
-  ensureDemoDeviceRoster();
+
+  if (BOOTSTRAP_DEMO_DEVICES) {
+    ensureDemoDeviceRoster();
+  } else {
+    console.log("[Start] Demo device bootstrap is disabled.");
+  }
+
+  removeSyntheticOfficeHistory();
+  ensureRealPresentationHistoryData();
+  ensurePersistentGymHistoryMockData();
 
   app.listen(PORT, () => {
     console.log(`Backend running at http://localhost:${PORT}`);

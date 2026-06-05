@@ -12,6 +12,7 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  completeTokenLogin: (token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -70,6 +71,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const completeTokenLogin = useCallback(async (nextToken: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      localStorage.setItem("token", nextToken);
+      const userData = await apiGet<User>("/auth/me");
+      setToken(nextToken);
+      setUser(userData);
+    } catch (err) {
+      localStorage.removeItem("token");
+      setToken(null);
+      setUser(null);
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     setToken(null);
@@ -85,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         error,
         login,
+        completeTokenLogin,
         logout,
       }}
     >

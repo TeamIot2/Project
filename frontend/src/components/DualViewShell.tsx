@@ -2,6 +2,7 @@
 // when viewport exceeds 1439px
 
 import { useState, useEffect, createContext, useContext, type FC } from "react";
+import { useLocation } from "react-router-dom";
 import { useDualViewPreference } from "../contexts/DualViewPreferenceContext";
 import { DUAL_VIEW_MEDIA_QUERY } from "../constants/dualView";
 
@@ -15,6 +16,7 @@ interface DualViewShellProps {
 
 export default function DualViewShell({ Content }: DualViewShellProps) {
   const { dualViewEnabled } = useDualViewPreference();
+  const location = useLocation();
   const [isWideEnough, setIsWideEnough] = useState(
     () => window.matchMedia(DUAL_VIEW_MEDIA_QUERY).matches
   );
@@ -26,7 +28,8 @@ export default function DualViewShell({ Content }: DualViewShellProps) {
     return () => mql.removeEventListener("change", handler);
   }, []);
 
-  const isDual = dualViewEnabled && isWideEnough;
+  const isLoginRoute = location.pathname === "/login";
+  const isDual = !isLoginRoute && dualViewEnabled && isWideEnough;
 
   useEffect(() => {
     if (!isDual) return;

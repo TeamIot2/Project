@@ -1,0 +1,46 @@
+﻿[
+    {
+        "device_id":  "esp32-004",
+        "name":  "Greenhouse (mock)",
+        "location":  "Greenhouse placeholder",
+        "last_seen":  "2026-06-05T08:26:44.499Z",
+        "status":  "online",
+        "firmware_version":  "1.0.0",
+        "battery_v":  3.88,
+        "monitoring_enabled":  true,
+        "monitoring_command_seq":  0
+    },
+    {
+        "device_id":  "esp32-002",
+        "name":  "Gym (mock)",
+        "location":  "Gym placeholder",
+        "last_seen":  "2026-06-05T08:26:44.499Z",
+        "status":  "online",
+        "firmware_version":  "1.2.0",
+        "battery_v":  4.02,
+        "monitoring_enabled":  true,
+        "monitoring_command_seq":  0
+    },
+    {
+        "device_id":  "esp32-005",
+        "name":  "School (mock)",
+        "location":  "School placeholder",
+        "last_seen":  "2026-06-05T08:26:44.499Z",
+        "status":  "online",
+        "firmware_version":  "1.2.1",
+        "battery_v":  4.01,
+        "monitoring_enabled":  true,
+        "monitoring_command_seq":  0
+    },
+    {
+        "device_id":  "esp32-001",
+        "name":  "Unicorn-ESP32",
+        "location":  "Unicorn-ESP32",
+        "last_seen":  "2026-06-05T08:37:55.842Z",
+        "status":  "online",
+        "battery_v":  0,
+        "monitoring_enabled":  true,
+        "monitoring_command_seq":  0,
+        "measurement_started_at":  "2026-06-04T21:04:05.752Z"
+    }
+]

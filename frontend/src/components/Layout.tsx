@@ -14,6 +14,7 @@ import { usePanelType } from "./DualViewShell";
 import { Home, BarChart2, Cpu, Settings, Moon, Sun, Briefcase, Activity, LogOut, ChevronDown, Globe, Tree, GraduationCap, Factory, Sprout } from "./Icons";
 import type { EnvironmentMode } from "../types";
 import type { Translations } from "../i18n/translations";
+import { withMockModeSuffix } from "../utils/modeLabels";
 
 // Navigation items — labels resolved via translations
 function getNavItems(t: Translations) {
@@ -26,12 +27,15 @@ function getNavItems(t: Translations) {
 }
 
 // Environment mode config — labels resolved via translations
-function getEnvModes(t: Translations): { id: EnvironmentMode; icon: typeof Moon; label: string }[] {
+function getEnvModes(
+  t: Translations,
+  getModeLabel: (modeId: EnvironmentMode, fallback: string) => string
+): { id: EnvironmentMode; icon: typeof Moon; label: string }[] {
   return [
-    { id: "office", icon: Briefcase, label: t.env_office },
-    { id: "sleep", icon: Moon, label: t.env_sleep },
-    { id: "sport", icon: Activity, label: t.env_sport },
-    { id: "outdoor", icon: Tree, label: t.env_outdoor },
+    { id: "office", icon: Briefcase, label: getModeLabel("office", t.env_office) },
+    { id: "sleep", icon: Moon, label: getModeLabel("sleep", t.env_sleep) },
+    { id: "sport", icon: Activity, label: getModeLabel("sport", t.env_sport) },
+    { id: "outdoor", icon: Tree, label: getModeLabel("outdoor", t.env_outdoor) },
   ];
 }
 
@@ -53,7 +57,7 @@ export default function Layout() {
   const { locale, t, setLocale } = useI18n();
   const { theme, toggleTheme } = useTheme();
   const { dualViewEnabled, setDualViewEnabled } = useDualViewPreference();
-  const { favoriteModes } = useSettingsState();
+  const { favoriteModes, modeMetaOverrides } = useSettingsState();
   const panelType = usePanelType();
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,20 +73,22 @@ export default function Layout() {
   const [envModalOpen, setEnvModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navItems = getNavItems(t);
-  const envModes = getEnvModes(t);
+  const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
+    withMockModeSuffix(modeId, modeMetaOverrides[modeId]?.name ?? fallback);
+  const envModes = getEnvModes(t, getModeLabel);
   const figmaTab = location.pathname === "/history" ? "history"
     : location.pathname === "/devices" ? "devices"
     : location.pathname === "/settings" ? "settings"
     : "measure";
   const showPersistentFigmaDesktop = activeStyle.id === 16 && isDesktopUI && panelType !== "mobile" && figmaTab !== "measure";
   const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Moon; gradient: string; bgImage: string }[] = [
-    { id: "sleep",      label: t.env_sleep,      icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
-    { id: "office",     label: t.env_office,     icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
-    { id: "school",     label: t.env_school,     icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
-    { id: "outdoor",    label: t.env_outdoor,    icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
-    { id: "sport",      label: t.env_sport,      icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
-    { id: "factory",    label: t.env_factory,    icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
-    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
+    { id: "sleep",      label: getModeLabel("sleep", t.env_sleep),           icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
+    { id: "office",     label: getModeLabel("office", t.env_office),         icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
+    { id: "school",     label: getModeLabel("school", t.env_school),         icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
+    { id: "outdoor",    label: getModeLabel("outdoor", t.env_outdoor),       icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
+    { id: "sport",      label: getModeLabel("sport", t.env_sport),           icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
+    { id: "factory",    label: getModeLabel("factory", t.env_factory),       icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
+    { id: "greenhouse", label: getModeLabel("greenhouse", t.env_greenhouse), icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
   const modeAccentColor: Record<string, string> = {
     sleep: "#A78BFA",
@@ -162,10 +168,10 @@ export default function Layout() {
     <div className="app-layout">
       {/* Desktop sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-brand">
+        <NavLink to="/" end className="sidebar-brand sidebar-brand-link" aria-label="Team2App home">
           <span className="brand-icon">IoT</span>
           <span className="brand-name">Team2App</span>
-        </div>
+        </NavLink>
 
         <nav className="sidebar-nav">
           {navItems.map((item) => (
@@ -209,15 +215,22 @@ export default function Layout() {
         <header className="app-header">
           {/* Brand */}
           <div className="figma-brand">
-            <div className="figma-brand-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 12 L6 8 L10 16 L14 6 L18 14 L22 10" />
-              </svg>
-            </div>
-            <div className="figma-brand-text">
-              <span className="figma-brand-name">Team2App</span>
-              <span className="figma-brand-subtitle">Internet of Things</span>
-            </div>
+            <button
+              type="button"
+              className="figma-brand-home"
+              onClick={() => setFigmaTab("measure")}
+              aria-label="Team2App home"
+            >
+              <div className="figma-brand-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12 L6 8 L10 16 L14 6 L18 14 L22 10" />
+                </svg>
+              </div>
+              <div className="figma-brand-text">
+                <span className="figma-brand-name">Team2App</span>
+                <span className="figma-brand-subtitle">Internet of Things</span>
+              </div>
+            </button>
             {isDualViewAvailable && (
               <label className="dual-view-toggle" title={locale === "cs" ? "Povolit dual view" : "Enable dual view"}>
                 <input
@@ -294,6 +307,16 @@ export default function Layout() {
                   <span className="dropdown-email">{user?.email}</span>
                 </div>
                 <hr className="dropdown-divider" />
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    navigate("/settings#user-profile");
+                  }}
+                >
+                  <Settings size={16} />
+                  <span>{locale === "cs" ? "Nastavení profilu" : "Profile settings"}</span>
+                </button>
                 <button
                   className="dropdown-item"
                   onClick={() => {

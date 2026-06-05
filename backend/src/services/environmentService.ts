@@ -24,8 +24,8 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "office",
-    name: "Office",
-    description: "Office environment",
+    name: "Unicorn",
+    description: "Unicorn environment",
     icon: "briefcase",
     thresholds: {
       co2_ppm: { good: [0, 800], moderate: [800, 1200] },
@@ -38,7 +38,7 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "sport",
-    name: "Gym",
+    name: "Gym(M)",
     description: "Gym environment",
     icon: "activity",
     thresholds: {
@@ -52,7 +52,7 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "outdoor",
-    name: "Garden",
+    name: "Garden(M)",
     description: "Garden environment monitoring",
     icon: "tree",
     thresholds: {
@@ -66,7 +66,7 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "school",
-    name: "School",
+    name: "School(M)",
     description: "School classroom environment",
     icon: "sun",
     thresholds: {
@@ -80,7 +80,7 @@ const PRESETS: EnvironmentPreset[] = [
   },
   {
     id: "factory",
-    name: "Factory",
+    name: "Factory(M)",
     description: "Industrial and manufacturing environment",
     icon: "wind",
     thresholds: {

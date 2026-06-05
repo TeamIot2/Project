@@ -31,6 +31,41 @@ export interface DeviceInfo {
   status: DeviceStatus;
   firmware_version?: string;
   battery_v?: number;
+  monitoring_enabled?: boolean;
+  monitoring_command_seq?: number;
+  monitoring_updated_at?: string;
+  measurement_started_at?: string;
+}
+
+export interface DeviceMeasurementUptime {
+  device_id: string;
+  measuring: boolean;
+  started_at: string | null;
+  latest_at: string | null;
+  uptime_seconds: number;
+  sample_count: number;
+}
+
+export interface MeasurementUptimeResponse {
+  device_ids: string[];
+  measuring: boolean;
+  started_at: string | null;
+  latest_at: string | null;
+  uptime_seconds: number;
+  devices: DeviceMeasurementUptime[];
+}
+
+export interface ModeMeasurementStatsResponse {
+  mode: string;
+  device_ids: string[];
+  from: string | null;
+  to: string | null;
+  uptime_seconds: number;
+  interval_seconds: number;
+  reliability_pct: number;
+  stored_samples: number;
+  expected_samples: number;
+  segments: number;
 }
 
 export interface User {

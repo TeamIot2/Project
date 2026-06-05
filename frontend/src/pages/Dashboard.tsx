@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useDashboard } from "../contexts/DashboardContext";
+import { REAL_OFFICE_DEVICE_ID, useDashboard } from "../contexts/DashboardContext";
 import {
   LineChart,
   Line,
@@ -15,13 +15,15 @@ import {
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useVisualStyle } from "../contexts/StyleContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useSettingsState } from "../contexts/SettingsStateContext";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
-import { apiGet } from "../api";
+import { apiGet, apiPatch } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { getDisplayDeviceName } from "../utils/deviceDisplayName";
-import type { EnvironmentalReading, DeviceInfo } from "../types";
+import { withMockModeSuffix } from "../utils/modeLabels";
+import type { EnvironmentalReading, DeviceInfo, MeasurementUptimeResponse, ModeMeasurementStatsResponse } from "../types";
 import type { Translations } from "../i18n/translations";
 import { METRICS as metrics, METRIC_COLORS as sensorColors, SENSOR_LABEL_KEYS as sensorLabelKeys } from "../constants/chartColors";
 import {
@@ -43,11 +45,15 @@ import {
   Sprout,
   Cpu,
   Co2Molecule,
+  X,
 } from "../components/Icons";
 import type { EnvironmentMode } from "../types";
 import EnvironmentCarousel from "../components/EnvironmentCarousel";
 
 // sensorColors, sensorLabelKeys, and metrics are imported from constants/chartColors.ts
+
+const READING_REFRESH_INTERVAL_SECONDS = 5;
+const READING_REFRESH_INTERVAL_MS = READING_REFRESH_INTERVAL_SECONDS * 1000;
 
 // Map icon names to components
 const iconMap: Record<string, typeof Wind> = {
@@ -142,51 +148,46 @@ function getTipSeverity(
 }
 
 /**
- * Score used in per-metric mini gauges.
- * Cap "good" at 99% so simulated values stay realistic.
- */
-function qualityToMetricScore(quality: "good" | "moderate" | "poor"): number {
-  return quality === "good" ? 99 : quality === "moderate" ? 60 : 20;
-}
-
-/**
  * Calculate air quality score (0-100) from all sensor readings
  * against current environment thresholds.
  */
 function calcAirQuality(
   reading: EnvironmentalReading,
-  getQuality: (key: string, value: number) => "good" | "moderate" | "poor"
+  getMetricScore: (key: string, value: number) => number
 ): number {
   const scores: number[] = [];
   const sensorKeys = ["co2_ppm", "temperature_c", "humidity_pct", "pressure_hpa", "light_lux"];
-  // Map noise: use sound_level_adc as noise_adc
-  const noiseValue = reading.sound_level_adc;
 
   for (const key of sensorKeys) {
     const val = reading[key as keyof EnvironmentalReading] as number;
-    const q = getQuality(key, val);
-    scores.push(q === "good" ? 100 : q === "moderate" ? 60 : 20);
+    scores.push(getMetricScore(key, val));
   }
-  // Noise
-  const noiseQ = getQuality("noise_adc", noiseValue);
-  scores.push(noiseQ === "good" ? 100 : noiseQ === "moderate" ? 60 : 20);
+
+  scores.push(getMetricScore("noise_adc", reading.sound_level_adc));
 
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
 /**
- * Keep most modes in the green zone.
- * Gym (sport) intentionally stays around 60-75% for demo contrast.
+ * Keep the dashboard score honest: no demo-mode green boosting.
  */
 function normalizeDashboardScoreByMode(score: number, mode: EnvironmentMode): number {
-  const boundedScore = Math.max(0, Math.min(100, score));
-  if (mode === "sport") {
-    return Math.round(60 + (boundedScore / 100) * 15);
-  }
-  if (mode === "factory") {
-    return boundedScore;
-  }
-  return Math.round(80 + (boundedScore / 100) * 20);
+  void mode;
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function formatDurationSeconds(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const d = Math.floor(safeSeconds / 86400);
+  const h = Math.floor((safeSeconds % 86400) / 3600);
+  const m = Math.floor((safeSeconds % 3600) / 60);
+  const s = safeSeconds % 60;
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d}d`);
+  parts.push(`${h}h`);
+  parts.push(`${String(m).padStart(2, "0")}m`);
+  parts.push(`${String(s).padStart(2, "0")}s`);
+  return parts.join(" ");
 }
 
 /**
@@ -266,8 +267,9 @@ function SensorMiniGauge({
   const size = 100;
   const center = size / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = (score / 100) * circumference;
-  const color = score >= 80 ? "#22C55E" : score >= 60 ? "#FACC15" : score >= 40 ? "#F97316" : "#EF4444";
+  const displayScore = Math.max(0, Math.min(100, Math.round(score)));
+  const progress = (displayScore / 100) * circumference;
+  const color = displayScore >= 80 ? "#22C55E" : displayScore >= 60 ? "#FACC15" : displayScore >= 40 ? "#F97316" : "#EF4444";
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="sensor-mini-gauge">
@@ -287,7 +289,7 @@ function SensorMiniGauge({
         fontWeight="700"
         fill={scoreColor}
       >
-        {score}%
+        {displayScore}%
       </text>
       <text x={center} y={center + 14} textAnchor="middle" fontSize="12" fontWeight="600" fill={color}>{qualityLabel}</text>
     </svg>
@@ -332,11 +334,14 @@ interface DisconnectWarningState {
 }
 
 export default function Dashboard() {
-  const { mode, getQuality, setEnvironment } = useEnvironment();
+  const { mode, getQuality, getMetricScore, isCritical, isNotificationReached, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
   const { theme } = useTheme();
+  const { modeMetaOverrides, notificationChannel, criticalAlertsEnabled } = useSettingsState();
   const { t, locale } = useI18n();
   const isCs = locale === "cs";
+  const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
+    withMockModeSuffix(modeId, modeMetaOverrides[modeId]?.name ?? fallback);
   const environmentTabLabel = isCs ? "Prostředí" : "Environment";
   const hr = useHeartRate();
 
@@ -359,11 +364,12 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<string>("");
   const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
-  const [refreshCountdown, setRefreshCountdown] = useState(30);
-  const [fetchSuccess, setFetchSuccess] = useState(0);
-  const [fetchTotal, setFetchTotal] = useState(0);
-  const [measureStart, setMeasureStart] = useState<number | null>(Date.now());
+  const [refreshCountdown, setRefreshCountdown] = useState(READING_REFRESH_INTERVAL_SECONDS);
+  const [measureStart, setMeasureStart] = useState<number | null>(null);
   const [uptime, setUptime] = useState("");
+  const [modeStatsUptime, setModeStatsUptime] = useState("");
+  const [modeStatsReliability, setModeStatsReliability] = useState<number | null>(null);
+  const [dismissedNotificationKey, setDismissedNotificationKey] = useState<string | null>(null);
   const [deviceSelectionConfirm, setDeviceSelectionConfirm] = useState<DeviceSelectionConfirmState | null>(null);
   const [disconnectWarning, setDisconnectWarning] = useState<DisconnectWarningState | null>(null);
   const [showModeDeviceModal, setShowModeDeviceModal] = useState(false);
@@ -421,6 +427,14 @@ export default function Dashboard() {
     () => Array.from(selectedDevices).filter((deviceId) => selectableOnlineDeviceIdsForMode.includes(deviceId)),
     [selectableOnlineDeviceIdsForMode, selectedDevices]
   );
+  const uptimeDeviceIdsKey = useMemo(
+    () => selectedOnlineDeviceIdsForMode.join(","),
+    [selectedOnlineDeviceIdsForMode]
+  );
+  const modeStatsDeviceIdsKey = useMemo(
+    () => eligibleDeviceIdsForMode.join(","),
+    [eligibleDeviceIdsForMode]
+  );
   const hasMultipleAssignedDevicesForMode = assignedDevicesForMode.length > 1;
   const visibleAssignedDevicesForMode = useMemo(
     () =>
@@ -433,8 +447,15 @@ export default function Dashboard() {
   const showModeWithoutDeviceCard = hasNoAssignedDevicesForMode || hasNoSelectedDevicesForMode;
   const isStartBlocked = !isMeasuring && hasNoSelectedDevicesForMode;
   const modeAssignableDevices = useMemo(
-    () => devices.filter((device) => device.status === "online"),
-    [devices]
+    () =>
+      devices.filter(
+        (device) =>
+          device.status === "online" &&
+          (mode === "office"
+            ? device.device_id === REAL_OFFICE_DEVICE_ID
+            : true)
+      ),
+    [devices, mode]
   );
   const openModeDeviceModal = useCallback(() => {
     const preselected = new Set<string>(
@@ -483,6 +504,30 @@ export default function Dashboard() {
     setShowModeDeviceModal(false);
     setModeDeviceSelection(new Set());
   }, [mode, modeAssignableDevices, modeDeviceSelection, setDeviceModeAssignments]);
+
+  const applyMonitoringStateToSelectedDevices = useCallback(
+    async (enabled: boolean) => {
+      const targetDeviceIds = selectedOnlineDeviceIdsForMode.length > 0
+        ? selectedOnlineDeviceIdsForMode
+        : selectedDevice
+          ? [selectedDevice]
+          : [];
+
+      if (targetDeviceIds.length === 0) return;
+
+      const updatedDevices = await Promise.all(
+        targetDeviceIds.map((deviceId) =>
+          apiPatch<DeviceInfo>(`/devices/${deviceId}/monitoring`, { enabled })
+        )
+      );
+      const updatedById = new Map(updatedDevices.map((device) => [device.device_id, device]));
+
+      setDevices((prev) =>
+        prev.map((device) => updatedById.get(device.device_id) ?? device)
+      );
+    },
+    [selectedDevice, selectedOnlineDeviceIdsForMode]
+  );
 
   const requestMeasureToggle = useCallback(() => {
     if (isMeasuring) {
@@ -609,13 +654,13 @@ export default function Dashboard() {
 
   // Figma mode carousel definitions (style 16)
   const figmaModes: { id: EnvironmentMode; label: string; icon: typeof Wind; gradient: string; bgImage: string }[] = [
-    { id: "sleep",      label: t.env_sleep,      icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
-    { id: "office",     label: t.env_office,     icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
-    { id: "school",     label: t.env_school,     icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
-    { id: "outdoor",    label: t.env_outdoor,    icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
-    { id: "sport",      label: t.env_sport,      icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
-    { id: "factory",    label: t.env_factory,    icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
-    { id: "greenhouse", label: t.env_greenhouse, icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
+    { id: "sleep",      label: getModeLabel("sleep", t.env_sleep),           icon: Moon,          gradient: "linear-gradient(135deg, #7C3AED, #A78BFA)", bgImage: "/images/silent/silent_06_bedroom.png" },
+    { id: "office",     label: getModeLabel("office", t.env_office),         icon: Briefcase,     gradient: "linear-gradient(135deg, #38BDF8, #BAE6FD)", bgImage: "/images/silent/silent_07_office.png" },
+    { id: "school",     label: getModeLabel("school", t.env_school),         icon: GraduationCap, gradient: "linear-gradient(135deg, #FACC15, #FDE68A)", bgImage: "/images/silent/silent_01_classroom.png" },
+    { id: "outdoor",    label: getModeLabel("outdoor", t.env_outdoor),       icon: Tree,          gradient: "linear-gradient(135deg, #1E3A2F, #2D5040)", bgImage: "/images/silent/silent_03_nature.png" },
+    { id: "sport",      label: getModeLabel("sport", t.env_sport),           icon: Activity,      gradient: "linear-gradient(135deg, #F97316, #FCA044)", bgImage: "/images/silent/silent_02_gym.png" },
+    { id: "factory",    label: getModeLabel("factory", t.env_factory),       icon: Factory,       gradient: "linear-gradient(135deg, #6B7280, #9CA3AF)", bgImage: "/images/silent/silent_08_factory.png" },
+    { id: "greenhouse", label: getModeLabel("greenhouse", t.env_greenhouse), icon: Sprout,        gradient: "linear-gradient(135deg, #16A34A, #4ADE80)", bgImage: "/images/silent/silent_04_greenhouse.png" },
   ];
 
   // Accent color for the active mode - drives tab/content border color
@@ -641,13 +686,18 @@ export default function Dashboard() {
     return () => clearInterval(clock);
   }, []);
 
-  // Refresh countdown timer (resets every 30s)
+  // Refresh countdown timer (resets on each readings refresh)
   useEffect(() => {
+    if (!isMeasuring) {
+      setRefreshCountdown(READING_REFRESH_INTERVAL_SECONDS);
+      return;
+    }
+
     const timer = setInterval(() => {
-      setRefreshCountdown(prev => prev <= 1 ? 30 : prev - 1);
+      setRefreshCountdown(prev => prev <= 1 ? READING_REFRESH_INTERVAL_SECONDS : prev - 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isMeasuring]);
 
   const refreshDevices = useCallback(
     async () => {
@@ -764,6 +814,21 @@ export default function Dashboard() {
     }
   }, [devicesLoaded, eligibleDeviceIdsForMode, onlineEligibleDeviceIdsForMode, selectedDevice, setSelectedDevice, setSelectedDevices]);
 
+  useEffect(() => {
+    if (!devicesLoaded || selectedOnlineDeviceIdsForMode.length === 0) return;
+
+    const selectedModeDevices = devices.filter((device) =>
+      selectedOnlineDeviceIdsForMode.includes(device.device_id)
+    );
+    const allSelectedDevicesPaused = selectedModeDevices.length > 0 &&
+      selectedModeDevices.every((device) => device.monitoring_enabled === false);
+
+    if (allSelectedDevicesPaused && isMeasuring) {
+      setIsMeasuring(false);
+      setManuallyStopped(true);
+    }
+  }, [devices, devicesLoaded, isMeasuring, selectedOnlineDeviceIdsForMode, setIsMeasuring, setManuallyStopped]);
+
   // If selected mode has no selected online devices, force-stop measuring and close start confirmation.
   useEffect(() => {
     if (!hasNoSelectedDevicesForMode) return;
@@ -782,7 +847,7 @@ export default function Dashboard() {
     }
   }, [hasNoSelectedDevicesForMode, isMeasuring, manuallyStopped, setIsMeasuring]);
 
-  // Fetch readings when device changes
+  // Fetch readings only while frontend monitoring is active.
   const fetchData = useCallback(async () => {
     if (!selectedDevice) return;
     try {
@@ -803,13 +868,10 @@ export default function Dashboard() {
           hour12: false,
         })
       );
-      setRefreshCountdown(30);
+      setRefreshCountdown(READING_REFRESH_INTERVAL_SECONDS);
       setError(null);
-      setFetchTotal(p => p + 1);
-      setFetchSuccess(p => p + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
-      setFetchTotal(p => p + 1);
     } finally {
       setLoading(false);
     }
@@ -824,42 +886,95 @@ export default function Dashboard() {
       return;
     }
 
+    if (!isMeasuring) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, READING_REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchData, selectedDevice]);
+  }, [fetchData, isMeasuring, selectedDevice]);
 
-  // Track measuring start time
-  useEffect(() => {
-    if (isMeasuring) {
-      setMeasureStart(Date.now());
-    } else {
+  const fetchMeasurementUptime = useCallback(async () => {
+    if (!isMeasuring || !uptimeDeviceIdsKey) {
       setMeasureStart(null);
       setUptime("");
+      return;
     }
-  }, [isMeasuring]);
+
+    try {
+      const response = await apiGet<MeasurementUptimeResponse>("/readings/uptime", {
+        device_ids: uptimeDeviceIdsKey,
+      });
+
+      if (!response.measuring) {
+        setMeasureStart(null);
+        setUptime("");
+        return;
+      }
+
+      setMeasureStart(Date.now() - response.uptime_seconds * 1000);
+    } catch (err) {
+      console.warn("Failed to fetch measurement uptime:", err);
+    }
+  }, [isMeasuring, uptimeDeviceIdsKey]);
+
+  useEffect(() => {
+    void fetchMeasurementUptime();
+    if (!isMeasuring || !uptimeDeviceIdsKey) return;
+
+    const interval = setInterval(() => {
+      void fetchMeasurementUptime();
+    }, READING_REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [fetchMeasurementUptime, isMeasuring, uptimeDeviceIdsKey]);
 
   // Live uptime counter
   useEffect(() => {
     if (!measureStart) return;
     function tick() {
       const elapsed = Math.floor((Date.now() - measureStart!) / 1000);
-      const d = Math.floor(elapsed / 86400);
-      const h = Math.floor((elapsed % 86400) / 3600);
-      const m = Math.floor((elapsed % 3600) / 60);
-      const s = elapsed % 60;
-      const parts: string[] = [];
-      if (d > 0) parts.push(`${d}d`);
-      parts.push(`${h}h`);
-      parts.push(`${String(m).padStart(2, "0")}m`);
-      parts.push(`${String(s).padStart(2, "0")}s`);
-      setUptime(parts.join(" "));
+      setUptime(formatDurationSeconds(elapsed));
     }
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [measureStart]);
+
+  const fetchModeMeasurementStats = useCallback(async () => {
+    if (!modeStatsDeviceIdsKey) {
+      setModeStatsUptime("");
+      setModeStatsReliability(null);
+      return;
+    }
+
+    try {
+      const response = await apiGet<ModeMeasurementStatsResponse>("/readings/mode-stats", {
+        mode,
+        device_ids: modeStatsDeviceIdsKey,
+        interval_seconds: String(READING_REFRESH_INTERVAL_SECONDS),
+      });
+
+      setModeStatsUptime(response.uptime_seconds > 0 ? formatDurationSeconds(response.uptime_seconds) : "");
+      setModeStatsReliability(response.expected_samples > 0 ? response.reliability_pct : null);
+    } catch (err) {
+      console.warn("Failed to fetch mode measurement stats:", err);
+      setModeStatsUptime("");
+      setModeStatsReliability(null);
+    }
+  }, [mode, modeStatsDeviceIdsKey]);
+
+  useEffect(() => {
+    void fetchModeMeasurementStats();
+    if (!modeStatsDeviceIdsKey) return;
+
+    const interval = setInterval(() => {
+      void fetchModeMeasurementStats();
+    }, Math.max(READING_REFRESH_INTERVAL_MS * 3, 15000));
+    return () => clearInterval(interval);
+  }, [fetchModeMeasurementStats, modeStatsDeviceIdsKey]);
 
   /**
    * Get the sensor value from the current reading, mapping noise to sound_level_adc.
@@ -880,18 +995,74 @@ export default function Dashboard() {
   }
 
   // Compute quality label for the gauge
-  const rawAirQualityScore = currentReading ? calcAirQuality(currentReading, getQuality) : null;
+  const rawAirQualityScore = currentReading ? calcAirQuality(currentReading, getMetricScore) : null;
   const airQualityScore = rawAirQualityScore === null
     ? null
     : normalizeDashboardScoreByMode(rawAirQualityScore, mode);
   const animatedScore = useAnimatedNumber(airQualityScore ?? 0, 800);
   const qualityLabel = airQualityScore === null
     ? t.quality_loading
-    : airQualityScore >= 70
+    : airQualityScore >= 80
       ? t.quality_good
-      : airQualityScore >= 40
+      : airQualityScore >= 60
         ? t.quality_moderate
         : t.quality_poor;
+  const criticalSensorLabels = useMemo(() => {
+    if (!currentReading || !criticalAlertsEnabled || notificationChannel === "none") return [];
+
+    return metrics
+      .map((metric) => {
+        const value = metric.key === "noise_adc"
+          ? currentReading.sound_level_adc
+          : currentReading[metric.key as keyof EnvironmentalReading];
+
+        if (typeof value !== "number" || !isCritical(metric.key, value)) return null;
+        return t[sensorLabelKeys[metric.key]] ?? metric.label;
+      })
+      .filter((label): label is string => typeof label === "string" && label.length > 0);
+  }, [criticalAlertsEnabled, currentReading, isCritical, notificationChannel, t]);
+  const notificationSensorLabels = useMemo(() => {
+    if (!currentReading || notificationChannel === "none") return [];
+
+    return metrics
+      .map((metric) => {
+        const value = metric.key === "noise_adc"
+          ? currentReading.sound_level_adc
+          : currentReading[metric.key as keyof EnvironmentalReading];
+
+        if (typeof value !== "number") return null;
+        if (criticalAlertsEnabled && isCritical(metric.key, value)) return null;
+        if (!isNotificationReached(metric.key, value)) return null;
+        return t[sensorLabelKeys[metric.key]] ?? metric.label;
+      })
+      .filter((label): label is string => typeof label === "string" && label.length > 0);
+  }, [criticalAlertsEnabled, currentReading, isCritical, isNotificationReached, notificationChannel, t]);
+  const activeNotification = useMemo(() => {
+    if (criticalSensorLabels.length > 0) {
+      const message = isCs
+        ? `Kritická hodnota dosažena: ${criticalSensorLabels.join(", ")}.`
+        : `Critical value reached: ${criticalSensorLabels.join(", ")}.`;
+      return {
+        key: `critical:${criticalSensorLabels.join("|")}`,
+        message,
+        tone: "critical" as const,
+      };
+    }
+
+    if (notificationSensorLabels.length > 0) {
+      const message = isCs
+        ? `Notifikační hodnota dosažena: ${notificationSensorLabels.join(", ")}.`
+        : `Notification value reached: ${notificationSensorLabels.join(", ")}.`;
+      return {
+        key: `notification:${notificationSensorLabels.join("|")}`,
+        message,
+        tone: "notification" as const,
+      };
+    }
+
+    return null;
+  }, [criticalSensorLabels, isCs, notificationSensorLabels]);
+  const shouldShowNotification = Boolean(activeNotification && activeNotification.key !== dismissedNotificationKey);
 
   // Desktop hero insight text
   const insightText = generateInsight(currentReading, getQuality, t);
@@ -906,25 +1077,25 @@ export default function Dashboard() {
     {
       id: "office" as const,
       img: `${activeStyle.scenePrefix}office${activeStyle.sceneSuffix}`,
-      label: t.env_office,
+      label: getModeLabel("office", t.env_office),
       icon: Briefcase,
     },
     {
       id: "sleep" as const,
       img: `${activeStyle.scenePrefix}sleep${activeStyle.sceneSuffix}`,
-      label: t.env_sleep,
+      label: getModeLabel("sleep", t.env_sleep),
       icon: Moon,
     },
     {
       id: "sport" as const,
       img: `${activeStyle.scenePrefix}sport${activeStyle.sceneSuffix}`,
-      label: t.env_sport,
+      label: getModeLabel("sport", t.env_sport),
       icon: Activity,
     },
     {
       id: "outdoor" as const,
       img: `${activeStyle.scenePrefix}outdoor${activeStyle.sceneSuffix}`,
-      label: t.env_outdoor,
+      label: getModeLabel("outdoor", t.env_outdoor),
       icon: Tree,
     },
   ];
@@ -991,14 +1162,14 @@ export default function Dashboard() {
   const settingsPreview = [
     { label: "Push alerts", value: "Enabled", hint: "High CO2 and offline device warnings" },
     { label: "Weekly summary", value: "Monday 08:00", hint: "Email digest with trends and anomalies" },
-    { label: "Shared access", value: "2 members", hint: "Office manager and family viewer" },
+    { label: "Shared access", value: "2 members", hint: "Unicorn manager and family viewer" },
     { label: "Privacy mode", value: "Balanced", hint: "Sensor data retained for 30 days" },
   ];
 
   const automationPreview = [
     { name: "Night comfort mode", detail: "Reduce brightness after 22:00 and watch noise spikes", state: "Active" },
     { name: "Ventilation reminder", detail: "Notify when CO2 stays above 900 ppm for 10 min", state: "Pending" },
-    { name: "Office arrival preset", detail: "Switch to Office scene at first device wake-up", state: "Active" },
+    { name: "Unicorn arrival preset", detail: "Switch to Unicorn scene at first device wake-up", state: "Active" },
   ];
 
   const deviceSelectionConfirmText = useMemo(() => {
@@ -1027,13 +1198,13 @@ export default function Dashboard() {
 
   const currentModeLabel = (() => {
     const modeLabelById: Record<EnvironmentMode, string> = {
-      sleep: t.env_sleep,
-      office: t.env_office,
-      sport: t.env_sport,
-      outdoor: t.env_outdoor,
-      school: t.env_school,
-      factory: t.env_factory,
-      greenhouse: t.env_greenhouse,
+      sleep: getModeLabel("sleep", t.env_sleep),
+      office: getModeLabel("office", t.env_office),
+      sport: getModeLabel("sport", t.env_sport),
+      outdoor: getModeLabel("outdoor", t.env_outdoor),
+      school: getModeLabel("school", t.env_school),
+      factory: getModeLabel("factory", t.env_factory),
+      greenhouse: getModeLabel("greenhouse", t.env_greenhouse),
     };
     return modeLabelById[mode] ?? mode;
   })();
@@ -1066,6 +1237,26 @@ export default function Dashboard() {
         onSelect={setEnvironment}
         overlayStyle={isStyle16}
       />
+
+      {shouldShowNotification && activeNotification && (
+        <div
+          className={`dashboard-notification-banner ${
+            activeNotification.tone === "critical" ? "critical-alert-banner" : "notification-alert-banner"
+          }`}
+          role="alert"
+          aria-live={activeNotification.tone === "critical" ? "assertive" : "polite"}
+        >
+          <p>{activeNotification.message}</p>
+          <button
+            type="button"
+            className="dashboard-notification-close"
+            aria-label={isCs ? "Zavřít notifikaci" : "Close notification"}
+            onClick={() => setDismissedNotificationKey(activeNotification.key)}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ===== DESKTOP HERO STAGE: full-width hero with background image ===== */}
       <section className="desktop-hero-stage" style={{ backgroundImage: `url(${activeStyle.heroPrefix}${mode}${activeStyle.heroSuffix})` }}>
@@ -1210,7 +1401,7 @@ export default function Dashboard() {
             <span className="measuring-text">
               {isMeasuring ? t.measuring_active : t.measuring_inactive}
             </span>
-            <span className="measuring-timestamp">Live: {liveClock}</span>
+            <span className="measuring-timestamp">Live: {uptime || "--"}</span>
           </div>
         </div>
         <button
@@ -1525,9 +1716,9 @@ export default function Dashboard() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
         <div className="monitoring-stats-text">
-          <span>Uptime: {uptime || "--"}</span>
-          <span>Interval: 30s</span>
-          <span>Reliability: {fetchTotal > 0 ? Math.round((fetchSuccess / fetchTotal) * 100) : 100}%</span>
+          <span>Uptime: {modeStatsUptime || "--"}</span>
+          <span>Interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+          <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
         </div>
       </section>
 
@@ -1650,7 +1841,7 @@ export default function Dashboard() {
                     </div>
                     <div className="figma-measure-copy">
                       <h2>{isMeasuring ? t.measuring_active : t.measuring_inactive}</h2>
-                      <span className="figma-measure-timestamp">Live: {liveClock}</span>
+                      <span className="figma-measure-timestamp">Live: {uptime || "--"}</span>
                     </div>
                   </div>
                   <div className="figma-measure-stats">
@@ -1659,9 +1850,9 @@ export default function Dashboard() {
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                     <div className="figma-measure-stats-text">
-                      <span>Uptime: {uptime || "--"}</span>
-                      <span>Interval: 30s</span>
-                      <span>Reliability: {fetchTotal > 0 ? Math.round((fetchSuccess / fetchTotal) * 100) : 100}%</span>
+                      <span>Uptime: {modeStatsUptime || "--"}</span>
+                      <span>Interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+                      <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
                     </div>
                   </div>
                   <button
@@ -1763,6 +1954,7 @@ export default function Dashboard() {
                   {metrics.map((metric) => {
                     const value = getSensorValue(metric.key);
                     const quality = value !== null ? getQuality(metric.key, value) : "moderate";
+                    const metricScore = value !== null ? getMetricScore(metric.key, value) : 60;
                     const IconComponent = iconMap[metric.icon] ?? Wind;
                     const borderColor = sensorColors[metric.key] ?? "#9C9590";
                     const translatedLabel = t[sensorLabelKeys[metric.key]] ?? metric.label;
@@ -1777,7 +1969,7 @@ export default function Dashboard() {
                           <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
                         </div>
                         <SensorMiniGauge
-                          score={qualityToMetricScore(quality)}
+                          score={metricScore}
                           qualityLabel={getQualityLabel(quality)}
                           compact
                           scoreColor={theme === "dark" ? "#CBD5E1" : "#1E293B"}
@@ -1885,7 +2077,7 @@ export default function Dashboard() {
                     {[
                       { time: "10:34", title: "CO2 returned to healthy range", detail: "Living Room dropped under 650 ppm after ventilation." },
                       { time: "09:52", title: "Humidity rose after sleep scene", detail: "Bedroom reached 48% and stabilized." },
-                      { time: "08:15", title: "Office device reconnected", detail: "Sensor resumed normal 30 s reporting interval." },
+                      { time: "08:15", title: "Unicorn device reconnected", detail: "Sensor resumed normal 5 s reporting interval." },
                     ].map((event) => (
                       <div key={`${event.time}-${event.title}`} className="figma-timeline-item">
                         <span className="figma-timeline-time">{event.time}</span>
@@ -2111,12 +2303,17 @@ export default function Dashboard() {
               <button
                 className={`btn ${showConfirmModal === "stop" ? "btn-danger" : "btn-primary"}`}
                 disabled={showConfirmModal === "start" && hasNoSelectedDevicesForMode}
-                onClick={() => {
+                onClick={async () => {
                   if (showConfirmModal === "start" && hasNoSelectedDevicesForMode) return;
                   const starting = showConfirmModal === "start";
-                  setIsMeasuring(starting);
-                  setManuallyStopped(!starting);
-                  setShowConfirmModal(null);
+                  try {
+                    await applyMonitoringStateToSelectedDevices(starting);
+                    setIsMeasuring(starting);
+                    setManuallyStopped(!starting);
+                    setShowConfirmModal(null);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to update device monitoring state");
+                  }
                 }}
               >
                 {t.confirm_yes}

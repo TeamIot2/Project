@@ -10,21 +10,51 @@
         "id": "sim-inject",
         "type": "inject",
         "z": "iot-env-monitor-tab",
-        "name": "Simulate ESP32 (10s)",
+        "name": "Simulate ESP32 (disabled)",
         "props": [
             {
                 "p": "payload"
             }
         ],
-        "repeat": "10",
+        "repeat": "",
         "crontab": "",
         "once": false,
         "onceDelay": "5",
         "topic": "",
         "payload": "{\"device_id\":\"esp32-001\",\"co2_ppm\":487,\"temperature_c\":22.3,\"humidity_pct\":48.1,\"pressure_hpa\":1013.2,\"light_lux\":342,\"sound_level_adc\":1850,\"sound_peak_adc\":2100,\"sound_rms_adc\":1780,\"sound_event\":false,\"battery_v\":3.92}",
         "payloadType": "str",
-        "x": 200,
+        "x": 210,
         "y": 160,
+        "wires": []
+    },
+    {
+        "id": "serial-in-com3",
+        "type": "serial in",
+        "z": "iot-env-monitor-tab",
+        "name": "ESP32 USB serial COM3",
+        "serial": "serial-com3",
+        "x": 210,
+        "y": 120,
+        "wires": [
+            [
+                "filter-json-lines"
+            ]
+        ]
+    },
+    {
+        "id": "filter-json-lines",
+        "type": "function",
+        "z": "iot-env-monitor-tab",
+        "name": "Keep JSON lines only",
+        "func": "var line = String(msg.payload || \"\").trim();\nif (!line.startsWith(\"{\") || !line.endsWith(\"}\")) {\n    return null;\n}\nmsg.payload = line;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 450,
+        "y": 120,
         "wires": [
             [
                 "parse-json"
@@ -39,7 +69,7 @@
         "property": "payload",
         "action": "obj",
         "pretty": false,
-        "x": 450,
+        "x": 650,
         "y": 160,
         "wires": [
             [
@@ -89,12 +119,12 @@
         "id": "buffer-fn",
         "type": "function",
         "z": "iot-env-monitor-tab",
-        "name": "Buffer (batch 6)",
-        "func": "var MAX = 6;\nvar buffer = flow.get(\"readingBuffer\") || [];\nbuffer.push(msg.payload);\nif (buffer.length >= MAX) {\n    var batch = buffer.splice(0, MAX);\n    flow.set(\"readingBuffer\", buffer);\n    var seq = (flow.get(\"seq\") || 0) + 1;\n    flow.set(\"seq\", seq);\n    msg.payload = { gateway_id: \"node-red-gw-01\", sent_at: new Date().toISOString(), sequence: seq, readings: batch };\n    node.status({fill:\"green\",shape:\"dot\",text:batch.length+\" sent (seq \"+seq+\")\"});\n    return msg;\n} else {\n    flow.set(\"readingBuffer\", buffer);\n    node.status({fill:\"yellow\",shape:\"ring\",text:\"buffered: \"+buffer.length+\"/\"+MAX});\n    return null;\n}",
+        "name": "Forward each reading",
+        "func": "if (flow.get(\"monitoringEnabled\") === false && msg.payload.device_id === \"esp32-001\") {\n    node.status({fill:\"yellow\",shape:\"ring\",text:\"paused - not forwarding\"});\n    return null;\n}\nvar seq = (flow.get(\"seq\") || 0) + 1;\nflow.set(\"seq\", seq);\nmsg.payload = { gateway_id: \"node-red-gw-01\", sent_at: new Date().toISOString(), sequence: seq, readings: [msg.payload] };\nnode.status({fill:\"green\",shape:\"dot\",text:\"sent reading (seq \"+seq+\")\"});\nreturn msg;",
         "outputs": 1,
         "timeout": "",
         "noerr": 0,
-        "initialize": "flow.set(\"readingBuffer\",[]);\nflow.set(\"seq\",0);",
+        "initialize": "flow.set(\"seq\",0);\nif (flow.get(\"monitoringEnabled\") === undefined) flow.set(\"monitoringEnabled\", true);",
         "finalize": "",
         "libs": [],
         "x": 870,
@@ -129,14 +159,21 @@
         "method": "POST",
         "ret": "obj",
         "paytoqs": "ignore",
-        "url": "http://localhost:3001/api/readings/ingest",
+        "url": "https://team2.up.railway.app/api/readings/ingest",
         "tls": "",
         "persist": false,
         "proxy": "",
         "insecureHTTPParser": false,
         "authType": "",
         "senderr": true,
-        "headers": [],
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "x-gateway-key",
+                "valueType": "other",
+                "valueValue": "gw-secret-key-change-me"
+            }
+        ],
         "x": 1110,
         "y": 200,
         "wires": [
@@ -185,7 +222,7 @@
         "type": "comment",
         "z": "iot-env-monitor-tab",
         "name": "ESP32 --UART--> Node-RED --HTTP POST--> Express.js",
-        "info": "1. ESP32 sends JSON via UART every 10s\n2. Parse, validate, enrich with timestamp\n3. Buffer 6 readings (~60s)\n4. POST batch as GatewayIngestPayload",
+        "info": "1. ESP32 sends JSON via UART every 5s\n2. Parse, validate, enrich with timestamp\n3. POST each validated reading immediately\n4. Backend stores it as GatewayIngestPayload",
         "x": 290,
         "y": 40,
         "wires": []
@@ -194,10 +231,132 @@
         "id": "serial-note",
         "type": "comment",
         "z": "iot-env-monitor-tab",
-        "name": ">>> Install node-red-node-serialport, then replace Simulate with serial-in node <<<",
-        "info": "cd gateway/.node-red && npm install node-red-node-serialport",
+        "name": "Real input: COM3 serial-in is active",
+        "info": "The Simulate ESP32 inject node is disabled. Real ESP32 JSON lines are read from COM3 at 115200 baud through node-red-node-serialport.",
         "x": 370,
         "y": 240,
         "wires": []
+    },
+    {
+        "id": "control-poll",
+        "type": "inject",
+        "z": "iot-env-monitor-tab",
+        "name": "Poll backend monitoring control",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "3",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 250,
+        "y": 340,
+        "wires": [
+            [
+                "control-http"
+            ]
+        ]
+    },
+    {
+        "id": "control-http",
+        "type": "http request",
+        "z": "iot-env-monitor-tab",
+        "name": "GET monitoring control",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://team2.up.railway.app/api/devices/esp32-001/monitoring-control",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": true,
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "x-gateway-key",
+                "valueType": "other",
+                "valueValue": "gw-secret-key-change-me"
+            }
+        ],
+        "x": 530,
+        "y": 340,
+        "wires": [
+            [
+                "control-apply"
+            ]
+        ]
+    },
+    {
+        "id": "control-apply",
+        "type": "function",
+        "z": "iot-env-monitor-tab",
+        "name": "Apply monitoring control",
+        "func": "if (msg.statusCode !== 200) {\n    node.warn(\"Control endpoint error: \" + msg.statusCode);\n    node.status({fill:\"red\",shape:\"ring\",text:\"control err \" + msg.statusCode});\n    return null;\n}\nvar control = msg.payload || {};\nvar enabled = control.monitoring_enabled !== false;\nvar seq = Number(control.command_seq || 0);\nvar lastSeq = flow.get(\"monitoringCommandSeq\");\nvar current = flow.get(\"monitoringEnabled\");\nif (lastSeq === seq && current === enabled) {\n    return null;\n}\nflow.set(\"monitoringCommandSeq\", seq);\nflow.set(\"monitoringEnabled\", enabled);\nmsg.payload = \"TEAM2APP:\" + (enabled ? \"RESUME\" : \"PAUSE\") + \"\\n\";\nnode.status({fill:enabled ? \"green\" : \"yellow\",shape:enabled ? \"dot\" : \"ring\",text:enabled ? \"resume sent\" : \"pause sent\"});\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "if (flow.get(\"monitoringEnabled\") === undefined) flow.set(\"monitoringEnabled\", true);",
+        "finalize": "",
+        "libs": [],
+        "x": 790,
+        "y": 340,
+        "wires": [
+            [
+                "serial-out-com3",
+                "debug-control"
+            ]
+        ]
+    },
+    {
+        "id": "serial-out-com3",
+        "type": "serial out",
+        "z": "iot-env-monitor-tab",
+        "name": "ESP32 control serial out",
+        "serial": "serial-com3",
+        "x": 1060,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "debug-control",
+        "type": "debug",
+        "z": "iot-env-monitor-tab",
+        "name": "Debug: control command",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 1080,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "serial-com3",
+        "type": "serial-port",
+        "name": "ESP32 COM3 115200",
+        "serialport": "COM3",
+        "serialbaud": "115200",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "dtr": "none",
+        "rts": "none",
+        "cts": "none",
+        "dsr": "none",
+        "newline": "\\n",
+        "bin": "false",
+        "out": "char",
+        "addchar": "",
+        "responsetimeout": "10000"
     }
 ]

@@ -45,23 +45,19 @@ interface DeviceConfig {
 
 const DEVICE_CONFIGS: DeviceConfig[] = [
   {
-    info: { device_id: "esp32-001", name: "Gym", location: "Gym", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 3.95 },
+    info: { device_id: "esp32-001", name: "Unicorn-ESP32", location: "Unicorn-ESP32", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 3.95 },
     seed: 42, batteryStart: 4.2, tempOffset: 0.5, co2Scale: 1.0,
   },
   {
-    info: { device_id: "esp32-002", name: "Office", location: "Office - 2nd Floor", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 4.02 },
+    info: { device_id: "esp32-002", name: "Gym (mock)", location: "Gym placeholder", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.0", battery_v: 4.02 },
     seed: 137, batteryStart: 4.15, tempOffset: -0.3, co2Scale: 1.2,
   },
   {
-    info: { device_id: "esp32-003", name: "Bedroom", location: "Bedroom", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.1.3", battery_v: 3.82 },
-    seed: 256, batteryStart: 4.1, tempOffset: -0.8, co2Scale: 0.8,
-  },
-  {
-    info: { device_id: "esp32-004", name: "Greenhouse", location: "Greenhouse", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.0.0", battery_v: 3.88 },
+    info: { device_id: "esp32-004", name: "Greenhouse (mock)", location: "Greenhouse placeholder", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.0.0", battery_v: 3.88 },
     seed: 999, batteryStart: 4.05, tempOffset: 1.2, co2Scale: 0.9,
   },
   {
-    info: { device_id: "esp32-005", name: "School", location: "School", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.1", battery_v: 4.01 },
+    info: { device_id: "esp32-005", name: "School (mock)", location: "School placeholder", last_seen: NOW.toISOString(), status: "online" as DeviceStatus, firmware_version: "1.2.1", battery_v: 4.01 },
     seed: 512, batteryStart: 4.18, tempOffset: 0.1, co2Scale: 1.1,
   },
 ];

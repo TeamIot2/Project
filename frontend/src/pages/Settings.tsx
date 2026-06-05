@@ -2,23 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
-import { LogOut } from "../components/Icons";
 import type { EnvironmentMode, ThresholdRange } from "../types";
-
-type ThresholdPoint = {
-  ideal: number;
-  good: number;
-  moderate: number;
-  poor: number;
-};
+import {
+  clonePointThresholds,
+  cloneThresholdPoint,
+  MODE_THRESHOLD_STORAGE_KEY,
+  notifyModeThresholdsUpdated,
+  parseThresholdNumber,
+  storedThresholdToPoint,
+  thresholdsToPoints,
+  type StoredModeThresholds,
+  type StoredThresholdValue,
+  type ThresholdPoint,
+} from "../utils/modeThresholdStorage";
+import { withMockModeSuffix } from "../utils/modeLabels";
 
 type ModeThresholdDrafts = Record<string, Record<string, ThresholdPoint>>;
-type StoredModeThresholds = Record<string, Record<string, ThresholdRange | ThresholdPoint>>;
 type ModeCardMeta = {
   id: string;
   label: string;
@@ -39,60 +44,30 @@ const CREATE_MODE_IMAGE_OPTIONS = [
   "/images/silent/silent_04_greenhouse.png",
 ];
 
-function roundThresholdValue(value: number): number {
-  return Number.parseFloat(value.toFixed(2));
+const ENVIRONMENT_NAME_MAX_LENGTH = 50;
+const ENVIRONMENT_DESCRIPTION_MAX_LENGTH = 120;
+const UNSAFE_TEXT_PATTERN = /[<>\\{}[\]`]/;
+const CONTROL_TEXT_PATTERN = /[\u0000-\u001F\u007F]/;
+const RECOMMENDED_CZ_THRESHOLD_POINTS: Record<string, ThresholdPoint> = {
+  co2_ppm: { ideal: 0, lowerBad: null, upperBad: 1500, notification: 1000, critical: 2000 },
+  temperature_c: { ideal: 21, lowerBad: 10, upperBad: 30, notification: 28, critical: 35 },
+  humidity_pct: { ideal: 45, lowerBad: 25, upperBad: 75, notification: 70, critical: 90 },
+  pressure_hpa: { ideal: 1013, lowerBad: 970, upperBad: 1050, notification: 1045, critical: 1070 },
+  light_lux: { ideal: 500, lowerBad: 50, upperBad: 1200, notification: 1000, critical: 2000 },
+  noise_adc: { ideal: 0, lowerBad: null, upperBad: 2400, notification: 2100, critical: 2800 },
+  sound_level_adc: { ideal: 0, lowerBad: null, upperBad: 2400, notification: 2100, critical: 2800 },
+};
+
+function normalizeEnvironmentText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
 }
 
-function cloneThresholdPoint(point: ThresholdPoint): ThresholdPoint {
-  return {
-    ideal: point.ideal,
-    good: point.good,
-    moderate: point.moderate,
-    poor: point.poor,
-  };
-}
-
-function clonePointThresholds(thresholds: Record<string, ThresholdPoint>): Record<string, ThresholdPoint> {
-  return Object.fromEntries(
-    Object.entries(thresholds).map(([metricKey, point]) => [metricKey, cloneThresholdPoint(point)])
-  );
-}
-
-function isThresholdPoint(value: unknown): value is ThresholdPoint {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  return ["ideal", "good", "moderate", "poor"].every((key) => typeof candidate[key] === "number");
-}
-
-function isThresholdRange(value: unknown): value is ThresholdRange {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  if (!Array.isArray(candidate.good) || !Array.isArray(candidate.moderate)) return false;
-  return candidate.good.length === 2 && candidate.moderate.length === 2;
-}
-
-function rangeToPoint(range: ThresholdRange): ThresholdPoint {
-  const ideal = roundThresholdValue((range.good[0] + range.good[1]) / 2);
-  const good = roundThresholdValue(Math.max(range.good[0], range.good[1]));
-  const moderate = roundThresholdValue(Math.max(range.moderate[0], range.moderate[1]));
-  const step = Math.max(1, roundThresholdValue(Math.abs(moderate - good)));
-
-  return {
-    ideal,
-    good,
-    moderate,
-    poor: roundThresholdValue(moderate + step),
-  };
-}
-
-function thresholdsToPoints(thresholds: Record<string, ThresholdRange>): Record<string, ThresholdPoint> {
-  return Object.fromEntries(
-    Object.entries(thresholds).map(([metricKey, range]) => [metricKey, rangeToPoint(range)])
-  );
+function hasUnsafeText(value: string): boolean {
+  return UNSAFE_TEXT_PATTERN.test(value) || CONTROL_TEXT_PATTERN.test(value);
 }
 
 function storedToPointThresholds(
-  storedMode: Record<string, ThresholdRange | ThresholdPoint> | undefined,
+  storedMode: Record<string, StoredThresholdValue> | undefined,
   fallbackRanges: Record<string, ThresholdRange>
 ): Record<string, ThresholdPoint> {
   const fallback = thresholdsToPoints(fallbackRanges);
@@ -100,13 +75,9 @@ function storedToPointThresholds(
 
   const result = clonePointThresholds(fallback);
   for (const [metricKey, storedThreshold] of Object.entries(storedMode)) {
-    if (isThresholdPoint(storedThreshold)) {
-      result[metricKey] = cloneThresholdPoint(storedThreshold);
-      continue;
-    }
-
-    if (isThresholdRange(storedThreshold)) {
-      result[metricKey] = rangeToPoint(storedThreshold);
+    const normalizedThreshold = storedThresholdToPoint(storedThreshold);
+    if (normalizedThreshold) {
+      result[metricKey] = normalizedThreshold;
     }
   }
 
@@ -114,21 +85,21 @@ function storedToPointThresholds(
 }
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { presets } = useEnvironment();
   const { locale, t, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
   const isCs = locale === "cs";
 
   const {
     nickname, setNickname,
-    fullName, setFullName,
-    phone, setPhone,
     timezone, setTimezone,
     profileMessage, setProfileMessage,
     notificationChannel, setNotificationChannel,
     criticalAlertsEnabled, setCriticalAlertsEnabled,
     customModes, setCustomModes,
+    modeMetaOverrides, setModeMetaOverrides,
     newModeName, setNewModeName,
     expandedModeId, setExpandedModeId,
     avatarPreview, handleAvatarChange, removeAvatar, avatarInputRef,
@@ -138,7 +109,11 @@ export default function Settings() {
   const [newModeImage, setNewModeImage] = useState<string>(CREATE_MODE_IMAGE_OPTIONS[0]);
   const [modeThresholdDrafts, setModeThresholdDrafts] = useState<ModeThresholdDrafts>({});
   const [modeSettingsMessage, setModeSettingsMessage] = useState<string | null>(null);
+  const [modeNameDraft, setModeNameDraft] = useState("");
+  const [modeDescriptionDraft, setModeDescriptionDraft] = useState("");
   const [showDisableCriticalAlertsModal, setShowDisableCriticalAlertsModal] = useState(false);
+  const [showDeleteProfileModal, setShowDeleteProfileModal] = useState(false);
+  const [deleteEnvironmentTargetId, setDeleteEnvironmentTargetId] = useState<string | null>(null);
 
   const defaultThresholdTemplate = useMemo(() => {
     if (presets.length === 0) return {};
@@ -149,8 +124,15 @@ export default function Settings() {
   useEffect(() => {
     if (!user?.name) return;
     if (!nickname.trim()) setNickname(user.name);
-    if (!fullName.trim()) setFullName(user.name);
   }, [user?.name]); // Intentional: only run on user name change
+
+  useEffect(() => {
+    if (location.hash !== "#user-profile") return;
+
+    requestAnimationFrame(() => {
+      document.getElementById("user-profile")?.scrollIntoView({ block: "start" });
+    });
+  }, [location.hash]);
 
   useEffect(() => {
     if (presets.length === 0) return;
@@ -161,7 +143,7 @@ export default function Settings() {
       let storedDrafts: StoredModeThresholds = {};
 
       try {
-        const raw = localStorage.getItem("modeThresholdDrafts");
+        const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
         if (raw) {
           storedDrafts = JSON.parse(raw) as StoredModeThresholds;
         }
@@ -203,22 +185,22 @@ export default function Settings() {
     sound_level_adc: `${t.sensor_noise} (ADC)`,
   };
 
-  const displayName = fullName.trim() || user?.name || (isCs ? "Neznamy uzivatel" : "Unknown user");
+  const displayName = nickname.trim() || user?.name || (isCs ? "Neznámý uživatel" : "Unknown user");
   const notificationOptions = [
     {
       id: "none",
-      label: isCs ? "Bez oznameni" : "No notifications",
-      desc: isCs ? "Aplikace nebude posilat bezna oznameni." : "The app will not send regular notifications.",
+      label: isCs ? "Bez notifikací" : "No notifications",
+      desc: isCs ? "Aplikace nebude posílat běžné notifikace." : "The app will not send regular notifications.",
     },
     {
       id: "in_app",
       label: isCs ? "V aplikaci" : "In-app notifications",
-      desc: isCs ? "Upozorneni pouze uvnitr aplikace." : "Notifications shown only inside the app.",
+      desc: isCs ? "Upozornění pouze uvnitř aplikace." : "Notifications shown only inside the app.",
     },
     {
       id: "email",
       label: isCs ? "E-mail" : "Email notifications",
-      desc: isCs ? "Oznameni budou posilana i na e-mail." : "Notifications will also be sent by email.",
+      desc: isCs ? "Notifikace budou posílány i na e-mail." : "Notifications will also be sent by email.",
     },
   ] as const;
 
@@ -229,14 +211,14 @@ export default function Settings() {
   }, [displayName]);
 
   function saveProfile() {
-    if (!nickname.trim() || !fullName.trim()) {
-      setProfileMessage(isCs ? "Vypln prezdivku a jmeno." : "Fill in nickname and full name.");
+    if (!nickname.trim()) {
+      setProfileMessage(isCs ? "Vyplňte jméno." : "Fill in name.");
       return;
     }
 
     setProfileMessage(
       isCs
-        ? "Profil byl pripraven k ulozeni (demo flow)."
+        ? "Profil je připraven k uložení (demo režim)."
         : "Profile changes are ready to save (demo flow)."
     );
   }
@@ -252,6 +234,19 @@ export default function Settings() {
 
   function openDisableCriticalAlertsModal() {
     setShowDisableCriticalAlertsModal(true);
+  }
+
+  function closeDeleteProfileModal() {
+    setShowDeleteProfileModal(false);
+  }
+
+  function openDeleteProfileModal() {
+    setShowDeleteProfileModal(true);
+  }
+
+  function confirmDeleteProfile() {
+    closeDeleteProfileModal();
+    setProfileMessage(isCs ? "Smazání profilu bylo potvrzeno (demo režim)." : "Profile deletion was confirmed (demo flow).");
   }
 
   const modeCards: Record<string, { label: string; desc: string; bgImage: string }> = {
@@ -298,21 +293,25 @@ export default function Settings() {
   const unifiedModeCards: ModeCardMeta[] = useMemo(() => {
     const presetCards: ModeCardMeta[] = presets.map((preset) => {
       const info = modeCards[preset.id];
+      const override = modeMetaOverrides[preset.id];
       return {
         id: preset.id,
-        label: info?.label ?? preset.name,
-        desc: info?.desc ?? preset.description,
+        label: withMockModeSuffix(preset.id, override?.name ?? info?.label ?? preset.name),
+        desc: override?.description ?? info?.desc ?? preset.description,
         bgImage: info?.bgImage,
       };
     });
 
-    const customCards: ModeCardMeta[] = customModes.map((customMode, index) => ({
-      id: customMode.id,
-      label: customMode.name,
-      desc: customMode.description ?? (isCs ? "Vlastní prostředí s vlastními pravidly měření." : "Custom environment with your own measurement rules."),
-      bgImage: customMode.bgImage ?? CREATE_MODE_IMAGE_OPTIONS[index % CREATE_MODE_IMAGE_OPTIONS.length],
-      isCustom: true,
-    }));
+    const customCards: ModeCardMeta[] = customModes.map((customMode, index) => {
+      const override = modeMetaOverrides[customMode.id];
+      return {
+        id: customMode.id,
+        label: override?.name ?? customMode.name,
+        desc: override?.description ?? customMode.description ?? (isCs ? "Vlastní prostředí s vlastními pravidly měření." : "Custom environment with your own measurement rules."),
+        bgImage: customMode.bgImage ?? CREATE_MODE_IMAGE_OPTIONS[index % CREATE_MODE_IMAGE_OPTIONS.length],
+        isCustom: true,
+      };
+    });
 
     return [
       ...presetCards,
@@ -326,12 +325,115 @@ export default function Settings() {
         isCreate: true,
       },
     ];
-  }, [customModes, isCs, presets]);
+  }, [customModes, isCs, modeMetaOverrides, presets]);
 
   const expandedCustomMode = expandedModeId ? customModes.find((customMode) => customMode.id === expandedModeId) ?? null : null;
   const activeExpandedCard = expandedModeId ? unifiedModeCards.find((card) => card.id === expandedModeId) ?? null : null;
   const expandedDraft = expandedModeId ? modeThresholdDrafts[expandedModeId] : null;
   const isCreateEditorExpanded = expandedModeId === CREATE_MODE_ID;
+  const canDeleteExpandedMode = Boolean(expandedCustomMode);
+  const canRestorePresetMeta = Boolean(
+    expandedModeId &&
+    expandedModeId !== CREATE_MODE_ID &&
+    !expandedCustomMode &&
+    modeMetaOverrides[expandedModeId]
+  );
+  const deleteEnvironmentTarget = deleteEnvironmentTargetId
+    ? customModes.find((customMode) => customMode.id === deleteEnvironmentTargetId) ?? null
+    : null;
+
+  useEffect(() => {
+    if (!expandedModeId || expandedModeId === CREATE_MODE_ID) {
+      setModeNameDraft("");
+      setModeDescriptionDraft("");
+      return;
+    }
+
+    const card = unifiedModeCards.find((item) => item.id === expandedModeId);
+    setModeNameDraft(card?.label ?? "");
+    setModeDescriptionDraft(card?.desc ?? "");
+  }, [expandedModeId, unifiedModeCards]);
+
+  function validateEnvironmentName(rawName: string, modeId: string): string | null {
+    const nextName = normalizeEnvironmentText(rawName);
+
+    if (!nextName) {
+      setModeSettingsMessage(isCs ? "Název prostředí nesmí být prázdný." : "Environment name cannot be empty.");
+      return null;
+    }
+
+    if (nextName.length < 2) {
+      setModeSettingsMessage(isCs ? "Název prostředí musí mít alespoň 2 znaky." : "Environment name must be at least 2 characters.");
+      return null;
+    }
+
+    if (nextName.length > ENVIRONMENT_NAME_MAX_LENGTH) {
+      setModeSettingsMessage(
+        isCs
+          ? `Název prostředí může mít maximálně ${ENVIRONMENT_NAME_MAX_LENGTH} znaků.`
+          : `Environment name can be at most ${ENVIRONMENT_NAME_MAX_LENGTH} characters.`
+      );
+      return null;
+    }
+
+    if (hasUnsafeText(nextName)) {
+      setModeSettingsMessage(
+        isCs
+          ? "Název prostředí obsahuje nepovolené znaky."
+          : "Environment name contains unsupported characters."
+      );
+      return null;
+    }
+
+    const normalizedCandidate = nextName.toLocaleLowerCase(locale);
+    const duplicate = unifiedModeCards
+      .filter((card) => !card.isCreate && card.id !== modeId)
+      .some((card) => normalizeEnvironmentText(card.label).toLocaleLowerCase(locale) === normalizedCandidate);
+
+    if (duplicate) {
+      setModeSettingsMessage(
+        isCs
+          ? "Prostředí s tímto názvem už existuje."
+          : "An environment with this name already exists."
+      );
+      return null;
+    }
+
+    return nextName;
+  }
+
+  function validateEnvironmentDescription(rawDescription: string): string | null {
+    const nextDescription = normalizeEnvironmentText(rawDescription);
+
+    if (nextDescription.length > ENVIRONMENT_DESCRIPTION_MAX_LENGTH) {
+      setModeSettingsMessage(
+        isCs
+          ? `Popis prostředí může mít maximálně ${ENVIRONMENT_DESCRIPTION_MAX_LENGTH} znaků.`
+          : `Environment description can be at most ${ENVIRONMENT_DESCRIPTION_MAX_LENGTH} characters.`
+      );
+      return null;
+    }
+
+    if (hasUnsafeText(nextDescription)) {
+      setModeSettingsMessage(
+        isCs
+          ? "Popis prostředí obsahuje nepovolené znaky."
+          : "Environment description contains unsupported characters."
+      );
+      return null;
+    }
+
+    return nextDescription;
+  }
+
+  function getPresetDefaultMeta(modeId: string): { name: string; description: string } {
+    const preset = presets.find((item) => item.id === modeId);
+    const card = modeCards[modeId];
+    return {
+      name: card?.label ?? preset?.name ?? modeId,
+      description: card?.desc ?? preset?.description ?? "",
+    };
+  }
 
   function ensureModeDraft(modeId: string) {
     setModeThresholdDrafts((prev) => {
@@ -349,14 +451,147 @@ export default function Settings() {
     setModeSettingsMessage(null);
   }
 
+  function saveEnvironmentDetails(modeId: string): boolean {
+    if (modeId === CREATE_MODE_ID) return true;
+
+    const nextName = validateEnvironmentName(modeNameDraft, modeId);
+    if (!nextName) return false;
+
+    const nextDescription = validateEnvironmentDescription(modeDescriptionDraft);
+    if (nextDescription === null) return false;
+
+    if (expandedCustomMode) {
+      setCustomModes((prev) =>
+        prev.map((customMode) =>
+          customMode.id === modeId
+            ? {
+                ...customMode,
+                name: nextName,
+                description: nextDescription || undefined,
+              }
+            : customMode
+        )
+      );
+      setModeMetaOverrides((prev) => {
+        if (!prev[modeId]) return prev;
+        const next = { ...prev };
+        delete next[modeId];
+        return next;
+      });
+    } else {
+      const defaults = getPresetDefaultMeta(modeId);
+      setModeMetaOverrides((prev) => {
+        const next = { ...prev };
+        const override = {
+          ...(nextName !== defaults.name ? { name: nextName } : {}),
+          ...(nextDescription && nextDescription !== defaults.description ? { description: nextDescription } : {}),
+        };
+
+        if (Object.keys(override).length === 0) {
+          delete next[modeId];
+        } else {
+          next[modeId] = override;
+        }
+
+        return next;
+      });
+    }
+
+    return true;
+  }
+
+  function restorePresetDetails(modeId: string) {
+    const defaults = getPresetDefaultMeta(modeId);
+    setModeMetaOverrides((prev) => {
+      if (!prev[modeId]) return prev;
+      const next = { ...prev };
+      delete next[modeId];
+      return next;
+    });
+    setModeNameDraft(defaults.name);
+    setModeDescriptionDraft(defaults.description);
+    setModeSettingsMessage(
+      isCs ? "Název a popis prostředí byly vráceny na výchozí hodnoty." : "Environment name and description were restored."
+    );
+  }
+
+  function openDeleteEnvironmentModal(modeId: string) {
+    const modeToDelete = customModes.find((customMode) => customMode.id === modeId);
+    if (!modeToDelete) {
+      setModeSettingsMessage(
+        isCs
+          ? "Vestavěné prostředí nejde smazat, aby zůstaly zachované režimy aplikace."
+          : "Built-in environments cannot be deleted because the app depends on them."
+      );
+      return;
+    }
+
+    setDeleteEnvironmentTargetId(modeId);
+  }
+
+  function closeDeleteEnvironmentModal() {
+    setDeleteEnvironmentTargetId(null);
+  }
+
+  function confirmDeleteEnvironment() {
+    if (!deleteEnvironmentTargetId) return;
+    deleteCustomEnvironment(deleteEnvironmentTargetId);
+  }
+
+  function deleteCustomEnvironment(modeId: string) {
+    const modeToDelete = customModes.find((customMode) => customMode.id === modeId);
+    if (!modeToDelete) {
+      closeDeleteEnvironmentModal();
+      setModeSettingsMessage(
+        isCs
+          ? "Vestavěné prostředí nejde smazat, aby zůstaly zachované režimy aplikace."
+          : "Built-in environments cannot be deleted because the app depends on them."
+      );
+      return;
+    }
+
+    setCustomModes((prev) => prev.filter((customMode) => customMode.id !== modeId));
+    setModeMetaOverrides((prev) => {
+      if (!prev[modeId]) return prev;
+      const next = { ...prev };
+      delete next[modeId];
+      return next;
+    });
+    setModeThresholdDrafts((prev) => {
+      if (!prev[modeId]) return prev;
+      const next = { ...prev };
+      delete next[modeId];
+      return next;
+    });
+
+    if (isFavorite(modeId)) {
+      toggleFavoriteMode(modeId);
+    }
+
+    let storageError = false;
+    try {
+      const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
+      const stored = raw ? (JSON.parse(raw) as StoredModeThresholds) : {};
+      delete stored[modeId];
+      localStorage.setItem(MODE_THRESHOLD_STORAGE_KEY, JSON.stringify(stored));
+      notifyModeThresholdsUpdated();
+    } catch {
+      storageError = true;
+    }
+
+    closeDeleteEnvironmentModal();
+    setExpandedModeId(null);
+    setModeSettingsMessage(storageError ? t.storage_error : (isCs ? "Prostředí bylo smazáno." : "Environment was deleted."));
+  }
+
   function updateModeThreshold(
     modeId: string,
     metricKey: string,
     thresholdKey: keyof ThresholdPoint,
     rawValue: string
   ) {
-    const parsed = Number.parseFloat(rawValue);
-    if (!Number.isFinite(parsed)) return;
+    const parsed = parseThresholdNumber(rawValue);
+    if (thresholdKey === "ideal" && parsed === null) return;
 
     setModeThresholdDrafts((prev) => {
       const modeDraft = prev[modeId];
@@ -393,17 +628,51 @@ export default function Settings() {
     );
   }
 
+  function applyRecommendedThresholds(modeId: string) {
+    const currentDraft = modeThresholdDrafts[modeId];
+    if (!currentDraft) return;
+
+    setModeThresholdDrafts((prev) => ({
+      ...prev,
+      [modeId]: Object.fromEntries(
+        Object.keys(currentDraft).map((metricKey) => [
+          metricKey,
+          cloneThresholdPoint(RECOMMENDED_CZ_THRESHOLD_POINTS[metricKey] ?? {
+            ideal: 50,
+            lowerBad: 0,
+            upperBad: 100,
+            notification: 90,
+            critical: 120,
+          }),
+        ])
+      ),
+    }));
+
+    setModeSettingsMessage(
+      isCs
+        ? "Doporučené hodnoty byly přednastaveny podle běžných podmínek v ČR."
+        : "Recommended values were preset for typical Czech indoor conditions."
+    );
+  }
+
   function saveModeEditor(modeId: string) {
     const draft = modeThresholdDrafts[modeId];
     if (!draft) return;
 
     if (modeId === CREATE_MODE_ID) {
-      if (!newModeName.trim()) {
-        setModeSettingsMessage(isCs ? "Zadejte název nového prostředí." : "Enter a name for the new environment.");
-        return;
-      }
+      const validatedNewModeName = validateEnvironmentName(newModeName, CREATE_MODE_ID);
+      if (!validatedNewModeName) return;
 
-      const newCustomModeId = `custom-${Date.now()}`;
+      let newCustomModeId = `custom-${Date.now()}`;
+      let suffix = 1;
+      const existingModeIds = new Set([
+        ...presets.map((preset) => preset.id),
+        ...customModes.map((customMode) => customMode.id),
+      ]);
+      while (existingModeIds.has(newCustomModeId)) {
+        newCustomModeId = `custom-${Date.now()}-${suffix}`;
+        suffix += 1;
+      }
       const selectedImageIndex = Math.max(0, CREATE_MODE_IMAGE_OPTIONS.indexOf(newModeImage));
       const nextImageIndex = (selectedImageIndex + 1) % CREATE_MODE_IMAGE_OPTIONS.length;
 
@@ -411,7 +680,7 @@ export default function Settings() {
         ...prev,
         {
           id: newCustomModeId,
-          name: newModeName.trim().slice(0, 50),
+          name: validatedNewModeName,
           description: isCs ? "Uživatelsky vytvořené prostředí." : "User-created environment.",
           bgImage: newModeImage,
           focusMetric: "co2_ppm",
@@ -428,16 +697,17 @@ export default function Settings() {
       }));
 
       try {
-        const raw = localStorage.getItem("modeThresholdDrafts");
+        const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
         const stored = raw ? (JSON.parse(raw) as StoredModeThresholds) : {};
         localStorage.setItem(
-          "modeThresholdDrafts",
+          MODE_THRESHOLD_STORAGE_KEY,
           JSON.stringify({
             ...stored,
             [newCustomModeId]: draft,
             [CREATE_MODE_ID]: thresholdsToPoints(defaultThresholdTemplate),
           })
         );
+        notifyModeThresholdsUpdated();
       } catch {
         // Keep local state even if localStorage is unavailable.
         setModeSettingsMessage(t.storage_error);
@@ -450,18 +720,21 @@ export default function Settings() {
       return;
     }
 
+    if (!saveEnvironmentDetails(modeId)) return;
+
     try {
-      const raw = localStorage.getItem("modeThresholdDrafts");
+      const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
       const stored = raw ? (JSON.parse(raw) as StoredModeThresholds) : {};
       localStorage.setItem(
-        "modeThresholdDrafts",
+        MODE_THRESHOLD_STORAGE_KEY,
         JSON.stringify({
           ...stored,
           [modeId]: draft,
         })
       );
+      notifyModeThresholdsUpdated();
       setModeSettingsMessage(
-        isCs ? "Hodnoty prostředí byly uloženy lokálně." : "Environment values were saved locally."
+        isCs ? "Prostředí bylo uloženo." : "Environment was saved."
       );
     } catch {
       setModeSettingsMessage(t.storage_error);
@@ -499,6 +772,10 @@ export default function Settings() {
             );
           })}
         </div>
+
+        {modeSettingsMessage && (!expandedModeId || !expandedDraft) && (
+          <p className="mode-editor-note mode-editor-note-global">{modeSettingsMessage}</p>
+        )}
 
         {expandedModeId && expandedDraft && (
           <div className="mode-editor-panel">
@@ -539,24 +816,68 @@ export default function Settings() {
                   <input
                     className="form-input"
                     value={newModeName}
-                    maxLength={50}
-                    onChange={(event) => setNewModeName(event.target.value.slice(0, 50))}
-                    placeholder={isCs ? "napr. Focus Plus" : "e.g. Focus Plus"}
+                    maxLength={ENVIRONMENT_NAME_MAX_LENGTH}
+                    onChange={(event) => {
+                      setNewModeName(event.target.value.slice(0, ENVIRONMENT_NAME_MAX_LENGTH));
+                      setModeSettingsMessage(null);
+                    }}
+                    placeholder={isCs ? "např. Focus Plus" : "e.g. Focus Plus"}
+                  />
+                </div>
+                <div className="mode-create-image-column">
+                  <div
+                    className="mode-image-preview"
+                    aria-label={isCs ? "Náhled obrázku karty" : "Card image preview"}
+                  >
+                    <img
+                      src={newModeImage}
+                      alt=""
+                      className="mode-image-preview-img"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">{isCs ? "Obrazek karty" : "Card image"}</label>
+                    <select
+                      className="form-select"
+                      value={newModeImage}
+                      onChange={(event) => setNewModeImage(event.target.value)}
+                    >
+                      {CREATE_MODE_IMAGE_OPTIONS.map((imagePath, index) => (
+                        <option key={imagePath} value={imagePath}>
+                          {isCs ? `Motiv ${index + 1}` : `Theme ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isCreateEditorExpanded && (
+              <div className="mode-meta-fields">
+                <div className="form-group">
+                  <label className="form-label">{isCs ? "Název prostředí" : "Environment name"}</label>
+                  <input
+                    className="form-input"
+                    value={modeNameDraft}
+                    maxLength={ENVIRONMENT_NAME_MAX_LENGTH}
+                    onChange={(event) => {
+                      setModeNameDraft(event.target.value.slice(0, ENVIRONMENT_NAME_MAX_LENGTH));
+                      setModeSettingsMessage(null);
+                    }}
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">{isCs ? "Obrazek karty" : "Card image"}</label>
-                  <select
-                    className="form-select"
-                    value={newModeImage}
-                    onChange={(event) => setNewModeImage(event.target.value)}
-                  >
-                    {CREATE_MODE_IMAGE_OPTIONS.map((imagePath, index) => (
-                      <option key={imagePath} value={imagePath}>
-                        {isCs ? `Motiv ${index + 1}` : `Theme ${index + 1}`}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="form-label">{isCs ? "Popis prostředí" : "Environment description"}</label>
+                  <input
+                    className="form-input"
+                    value={modeDescriptionDraft}
+                    maxLength={ENVIRONMENT_DESCRIPTION_MAX_LENGTH}
+                    onChange={(event) => {
+                      setModeDescriptionDraft(event.target.value.slice(0, ENVIRONMENT_DESCRIPTION_MAX_LENGTH));
+                      setModeSettingsMessage(null);
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -566,8 +887,8 @@ export default function Settings() {
                 <article key={metricKey} className="mode-editor-card">
                   <h4 className="mode-editor-metric">{metricLabels[metricKey] ?? metricKey}</h4>
                   <div className="mode-editor-inputs">
-                    <label className="mode-editor-input-group">
-                      <span>{isCs ? "Idealni hodnota" : "Ideal value"}</span>
+                    <label className="mode-editor-input-group mode-editor-input-group-full">
+                      <span>{isCs ? "Ideální hodnota" : "Ideal value"}</span>
                       <input
                         type="number"
                         className="form-input mode-editor-input"
@@ -576,30 +897,39 @@ export default function Settings() {
                       />
                     </label>
                     <label className="mode-editor-input-group">
-                      <span>{isCs ? "Dobra hodnota" : "Good value"}</span>
+                      <span>{isCs ? "Minimální hodnota" : "Minimum value"}</span>
                       <input
                         type="number"
                         className="form-input mode-editor-input"
-                        value={threshold.good}
-                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "good", event.target.value)}
+                        value={threshold.lowerBad ?? ""}
+                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "lowerBad", event.target.value)}
                       />
                     </label>
                     <label className="mode-editor-input-group">
-                      <span>{isCs ? "Stredni hodnota" : "Moderate value"}</span>
+                      <span>{isCs ? "Maximální hodnota" : "Maximum value"}</span>
                       <input
                         type="number"
                         className="form-input mode-editor-input"
-                        value={threshold.moderate}
-                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "moderate", event.target.value)}
+                        value={threshold.upperBad ?? ""}
+                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "upperBad", event.target.value)}
                       />
                     </label>
-                    <label className="mode-editor-input-group">
-                      <span>{isCs ? "Spatna hodnota" : "Poor value"}</span>
+                    <label className="mode-editor-input-group mode-editor-input-group-notification">
+                      <span>{isCs ? "Notifikovat při dosažení hodnoty" : "Notify when value is reached"}</span>
                       <input
                         type="number"
-                        className="form-input mode-editor-input"
-                        value={threshold.poor}
-                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "poor", event.target.value)}
+                        className="form-input mode-editor-input mode-editor-input-notification"
+                        value={threshold.notification ?? ""}
+                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "notification", event.target.value)}
+                      />
+                    </label>
+                    <label className="mode-editor-input-group mode-editor-input-group-critical">
+                      <span>{isCs ? "Kritická hodnota" : "Critical value"}</span>
+                      <input
+                        type="number"
+                        className="form-input mode-editor-input mode-editor-input-critical"
+                        value={threshold.critical ?? ""}
+                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "critical", event.target.value)}
                       />
                     </label>
                   </div>
@@ -609,11 +939,24 @@ export default function Settings() {
 
             <div className="mode-editor-actions">
               <button className="btn btn-primary btn-sm mode-editor-action-btn" onClick={() => saveModeEditor(expandedModeId)}>
-                {isCs ? "Uložit hodnoty" : "Save values"}
+                {isCs ? "Uložit prostředí" : "Save environment"}
               </button>
               <button className="btn btn-outline btn-sm mode-editor-action-btn" onClick={() => resetModeEditor(expandedModeId)}>
                 {isCs ? "Resetovat prostředí" : "Reset environment"}
               </button>
+              {canRestorePresetMeta && (
+                <button className="btn btn-ghost btn-sm mode-editor-action-btn" onClick={() => restorePresetDetails(expandedModeId)}>
+                  {isCs ? "Vrátit výchozí název" : "Restore default name"}
+                </button>
+              )}
+              <button className="btn btn-outline btn-sm mode-editor-action-btn" onClick={() => applyRecommendedThresholds(expandedModeId)}>
+                {isCs ? "Doporučené hodnoty" : "Recommended values"}
+              </button>
+              {canDeleteExpandedMode && (
+                <button className="btn btn-danger btn-sm mode-editor-action-btn" onClick={() => openDeleteEnvironmentModal(expandedModeId)}>
+                  {isCs ? "Smazat prostředí" : "Delete environment"}
+                </button>
+              )}
               {modeSettingsMessage && <p className="mode-editor-note">{modeSettingsMessage}</p>}
             </div>
           </div>
@@ -621,7 +964,7 @@ export default function Settings() {
 
       </section>
 
-      <div className="page-header settings-group-header">
+      <div id="user-profile" className="page-header settings-group-header">
         <h1>{isCs ? "Uživatelský profil" : "User profile"}</h1>
       </div>
 
@@ -651,7 +994,7 @@ export default function Settings() {
               className="settings-avatar-input"
             />
             <button className="btn btn-outline btn-sm" onClick={() => avatarInputRef.current?.click()}>
-              {isCs ? "Zmenit fotku" : "Change photo"}
+              {isCs ? "Změnit fotku" : "Change photo"}
             </button>
             {avatarPreview && (
               <button className="btn btn-ghost btn-sm" onClick={removeAvatar}>
@@ -663,37 +1006,44 @@ export default function Settings() {
 
         <div className="settings-form-grid">
           <div className="form-group">
-            <label className="form-label">{isCs ? "Prezdivka" : "Nickname"}</label>
+            <label className="form-label">{isCs ? "Jméno" : "Name"}</label>
             <input className="form-input" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{isCs ? "Cele jmeno" : "Full name"}</label>
-            <input className="form-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
           <div className="form-group">
             <label className="form-label">Email</label>
             <input className="form-input" value={user?.email ?? ""} readOnly />
           </div>
           <div className="form-group">
-            <label className="form-label">{isCs ? "Telefon" : "Phone"}</label>
-            <input
-              className="form-input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={isCs ? "napr. +420..." : "e.g. +1..."}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{isCs ? "Casove pasmo" : "Time zone"}</label>
+            <label className="form-label">{isCs ? "Časové pásmo" : "Time zone"}</label>
             <input className="form-input" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
           </div>
         </div>
 
         <div className="settings-section-actions">
           <button className="btn btn-primary" onClick={saveProfile}>
-            {isCs ? "Ulozit profil" : "Save profile"}
+            {isCs ? "Uložit profil" : "Save profile"}
           </button>
           {profileMessage && <p className="settings-inline-message">{(t as unknown as Record<string, string>)[profileMessage] ?? profileMessage}</p>}
+        </div>
+
+        <div className="settings-profile-danger-row">
+          <div className="settings-preference-copy">
+            <span className="settings-preference-label">{isCs ? "Smazání profilu" : "Delete profile"}</span>
+            <span className="settings-preference-desc">
+              {isCs
+                ? "Trvale smaže tento uživatelský profil."
+                : "Permanently deletes this user profile."}
+            </span>
+          </div>
+          <div className="settings-critical-alert-cta">
+            <button
+              type="button"
+              className="btn btn-danger btn-sm settings-critical-alert-btn"
+              onClick={openDeleteProfileModal}
+            >
+              {isCs ? "Smazat profil" : "Delete profile"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -704,7 +1054,7 @@ export default function Settings() {
             <div className="settings-preference-copy">
               <span className="settings-preference-label">{t.theme}</span>
               <span className="settings-preference-desc">
-                {isCs ? "Vyberte preferovany vzhled aplikace." : "Choose your preferred app appearance."}
+                {isCs ? "Vyberte preferovaný vzhled aplikace." : "Choose your preferred app appearance."}
               </span>
             </div>
             <div className="pref-toggle-group settings-segmented-control">
@@ -753,18 +1103,18 @@ export default function Settings() {
           <div className="settings-preference-row settings-preference-row-wide">
             <div className="settings-preference-copy">
               <span className="settings-preference-label">
-                {isCs ? "Notifikace a alerty" : "Notifications and alerts"}
+                {isCs ? "Notifikace" : "Notifications and alerts"}
               </span>
               <span className="settings-preference-desc">
                 {isCs
-                  ? "Vyberte, kam se budou posilat bezna oznameni."
-                  : "Choose where regular notifications should be delivered."}
+                  ? "Vyberte, jaké notifikace si přejete dostávat."
+                  : "Choose which notifications you want to receive."}
               </span>
             </div>
             <div
               className="settings-notification-options"
-              role="radiogroup"
-              aria-label={isCs ? "Rezim oznameni" : "Notification mode"}
+              role="group"
+              aria-label={isCs ? "Nastavení notifikací" : "Notification settings"}
             >
               {notificationOptions.map((option) => (
                 <button
@@ -772,49 +1122,29 @@ export default function Settings() {
                   type="button"
                   className={`settings-notification-option ${notificationChannel === option.id ? "active" : ""}`}
                   onClick={() => setNotificationChannel(option.id)}
-                  role="radio"
-                  aria-checked={notificationChannel === option.id}
+                  aria-pressed={notificationChannel === option.id}
                 >
                   <span className="settings-notification-option-label">{option.label}</span>
                   <span className="settings-notification-option-desc">{option.desc}</span>
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="settings-preference-row settings-critical-alert-row">
-            <div className="settings-preference-copy">
-              <span className="settings-preference-label">
-                {isCs ? "Mereni nebezpecnych hodnot" : "Dangerous-value alerts"}
-              </span>
-              <span className={`settings-preference-desc ${!criticalAlertsEnabled ? "settings-preference-desc-danger" : ""}`}>
-                {criticalAlertsEnabled
-                  ? (isCs
-                    ? "Alerty na kriticke hodnoty jsou zapnute."
-                    : "Alerts for critical values are currently enabled.")
-                  : (isCs
-                    ? "Alerty na kriticke hodnoty jsou vypnute."
-                    : "Alerts for critical values are currently disabled.")}
-              </span>
-            </div>
-            <div className="settings-critical-alert-cta">
-              {criticalAlertsEnabled ? (
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm settings-critical-alert-btn"
-                  onClick={openDisableCriticalAlertsModal}
-                >
-                  {isCs ? "Vypnout kriticke alerty" : "Disable critical alerts"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-outline btn-sm settings-critical-alert-btn"
-                  onClick={() => setCriticalAlertsEnabled(true)}
-                >
-                  {isCs ? "Znovu zapnout kriticke alerty" : "Enable critical alerts"}
-                </button>
-              )}
+              <button
+                type="button"
+                className={`settings-notification-option settings-notification-danger-option ${!criticalAlertsEnabled ? "is-disabled" : ""}`}
+                onClick={criticalAlertsEnabled ? openDisableCriticalAlertsModal : () => setCriticalAlertsEnabled(true)}
+                aria-pressed={criticalAlertsEnabled}
+              >
+                <span className="settings-notification-option-label">
+                  {criticalAlertsEnabled
+                    ? (isCs ? "Vypnout kritické výstrahy" : "Disable critical alerts")
+                    : (isCs ? "Zapnout kritické výstrahy" : "Enable critical alerts")}
+                </span>
+                <span className="settings-notification-option-desc">
+                  {criticalAlertsEnabled
+                    ? (isCs ? "Výstrahy na kritické hodnoty jsou zapnuté." : "Critical-value alerts are enabled.")
+                    : (isCs ? "Výstrahy na kritické hodnoty jsou vypnuté." : "Critical-value alerts are disabled.")}
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -828,12 +1158,12 @@ export default function Settings() {
           >
             <p className="modal-text">
               {isCs
-                ? "Opravdu chcete vypnout notifikace o mereni nebezpecnych hodnot? Muzete je kdykoliv znovu zapnout."
+                ? "Opravdu chcete vypnout notifikace o měření nebezpečných hodnot? Můžete je kdykoliv znovu zapnout."
                 : "Are you sure you want to disable dangerous-value measurement alerts? You can enable them again anytime."}
             </p>
             <div className="modal-actions">
               <button className="btn btn-outline" onClick={closeDisableCriticalAlertsModal}>
-                {isCs ? "Zrusit" : "Cancel"}
+                {isCs ? "Zrušit" : "Cancel"}
               </button>
               <button className="btn btn-danger" onClick={disableCriticalAlertsWithConfirm}>
                 {isCs ? "Ano, vypnout" : "Yes, disable"}
@@ -843,12 +1173,51 @@ export default function Settings() {
         </div>
       )}
 
-      <section className="settings-section settings-signout-section">
-        <button className="btn btn-danger settings-signout-btn" onClick={logout}>
-          <LogOut size={18} />
-          <span>{t.sign_out}</span>
-        </button>
-      </section>
+      {deleteEnvironmentTarget && (
+        <div className="modal-overlay" onClick={closeDeleteEnvironmentModal}>
+          <div
+            className="modal-card settings-alert-confirm-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="modal-text">
+              {isCs
+                ? `Opravdu si přejete trvale smazat prostředí "${deleteEnvironmentTarget.name}"? Smažou se i jeho uložené hodnoty.`
+                : `Are you sure you want to permanently delete the environment "${deleteEnvironmentTarget.name}"? Its saved values will also be removed.`}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={closeDeleteEnvironmentModal}>
+                {isCs ? "Zrušit" : "Cancel"}
+              </button>
+              <button className="btn btn-danger" onClick={confirmDeleteEnvironment}>
+                {isCs ? "Ano, smazat prostředí" : "Yes, delete environment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteProfileModal && (
+        <div className="modal-overlay" onClick={closeDeleteProfileModal}>
+          <div
+            className="modal-card settings-alert-confirm-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="modal-text">
+              {isCs
+                ? "Opravdu si přejete trvale smazat svůj profil?"
+                : "Are you sure you want to permanently delete your profile?"}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={closeDeleteProfileModal}>
+                {isCs ? "Zrušit" : "Cancel"}
+              </button>
+              <button className="btn btn-danger" onClick={confirmDeleteProfile}>
+                {isCs ? "Ano, smazat profil" : "Yes, delete profile"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

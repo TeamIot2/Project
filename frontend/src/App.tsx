@@ -13,6 +13,7 @@ import { SettingsStateProvider } from "./contexts/SettingsStateContext";
 import Layout from "./components/Layout";
 import DualViewShell from "./components/DualViewShell";
 import Login from "./pages/Login";
+import GoogleAuthCallback from "./pages/GoogleAuthCallback";
 import Dashboard from "./pages/Dashboard";
 import History from "./pages/History";
 import Devices from "./pages/Devices";
@@ -22,6 +23,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />

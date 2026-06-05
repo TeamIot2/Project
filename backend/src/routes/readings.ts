@@ -10,17 +10,60 @@
 import { Router, Request, Response } from "express";
 import {
   insertReadings,
-  queryReadings,
-  getLatestReadingFromDb,
-  getStatsFromDb,
+  isDeviceMonitoringEnabled,
+  recordDeviceMeasurementStartFromGateway,
+  upsertDevice,
 } from "../services/database";
+import {
+  buildIngestDeviceInfo,
+  getAppLatestReading,
+  getAppMeasurementUptime,
+  getAppModeMeasurementStats,
+  getAppReadings,
+  getAppStats,
+} from "../services/appDataService";
 import { authenticateToken } from "../middleware/auth";
+import type { EnvironmentalReading } from "../../../shared/types";
 
 const router = Router();
 
 // ---- Gateway ingest (no user auth — uses gateway key) ----
 
 const GATEWAY_KEY = process.env.GATEWAY_KEY || "gw-secret-key-change-me";
+const GATEWAY_SEQUENCE_INTERVAL_SECONDS = Math.max(
+  1,
+  Number.parseInt(process.env.GATEWAY_SEQUENCE_INTERVAL_SECONDS ?? "5", 10) || 5
+);
+
+function parsePositiveSequence(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return null;
+  return Math.floor(parsed);
+}
+
+function parseTimestampMs(value: unknown): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function inferGatewayMeasurementStart(
+  sentAt: unknown,
+  sequence: unknown,
+  readings: EnvironmentalReading[]
+): string | null {
+  const sequenceNumber = parsePositiveSequence(sequence);
+  if (sequenceNumber === null) return null;
+
+  const sentAtMs = parseTimestampMs(sentAt) ?? Math.max(
+    ...readings
+      .map((reading) => parseTimestampMs(reading.timestamp))
+      .filter((time): time is number => time !== null),
+    Date.now()
+  );
+  const elapsedMs = Math.max(0, sequenceNumber - 1) * GATEWAY_SEQUENCE_INTERVAL_SECONDS * 1000;
+  return new Date(sentAtMs - elapsedMs).toISOString();
+}
 
 router.post("/ingest", (req: Request, res: Response) => {
   const key = req.headers["x-gateway-key"] as string | undefined;
@@ -57,15 +100,32 @@ router.post("/ingest", (req: Request, res: Response) => {
 
   const rejected = readings.length - validReadings.length;
 
-  const accepted = validReadings.length > 0 ? insertReadings(validReadings) : 0;
+  const normalizedReadings = validReadings.map((reading) => ({
+    ...reading,
+    gateway_id: typeof reading.gateway_id === "string" ? reading.gateway_id : gateway_id,
+    source: typeof reading.source === "string" ? reading.source : "gateway-ingest",
+  })) as EnvironmentalReading[];
+
+  const enabledReadings = normalizedReadings.filter((reading) => isDeviceMonitoringEnabled(reading.device_id));
+  const droppedDisabled = normalizedReadings.length - enabledReadings.length;
+  const accepted = enabledReadings.length > 0 ? insertReadings(enabledReadings) : 0;
+  const measurementStartedAt = inferGatewayMeasurementStart(sent_at, sequence, normalizedReadings);
+
+  for (const reading of enabledReadings) {
+    upsertDevice(buildIngestDeviceInfo(reading, gateway_id));
+    if (measurementStartedAt) {
+      recordDeviceMeasurementStartFromGateway(reading.device_id, measurementStartedAt);
+    }
+  }
 
   console.log(
-    `[Ingest] gateway=${gateway_id} seq=${sequence} accepted=${accepted} rejected=${rejected} sent_at=${sent_at}`
+    `[Ingest] gateway=${gateway_id} seq=${sequence} accepted=${accepted} rejected=${rejected} dropped_disabled=${droppedDisabled} sent_at=${sent_at}`
   );
 
   res.status(201).json({
     accepted,
     rejected,
+    dropped_disabled: droppedDisabled,
     sequence,
     timestamp: new Date().toISOString(),
   });
@@ -75,12 +135,43 @@ router.post("/ingest", (req: Request, res: Response) => {
 
 router.use(authenticateToken);
 
-// GET /api/readings — empty for User2 (usr-4)
-router.get("/", (req: Request, res: Response) => {
-  // Demo user with no assigned devices — used for testing empty state UX.
-  // Returns an empty array so the frontend can exercise its "no data" paths.
-  if (req.user?.id === "usr-4") { res.json([]); return; }
+function getDeviceIdsFromQuery(value: unknown): string[] {
+  const rawValues = Array.isArray(value) ? value : [value];
+  return rawValues
+    .filter((item): item is string => typeof item === "string")
+    .flatMap((item) => item.split(","))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
+router.get("/uptime", (req: Request, res: Response) => {
+  const deviceIds = getDeviceIdsFromQuery(req.query.device_ids ?? req.query.device_id);
+  if (deviceIds.length === 0) {
+    res.status(400).json({ error: "device_ids query parameter is required" });
+    return;
+  }
+
+  res.json(getAppMeasurementUptime(deviceIds));
+});
+
+router.get("/mode-stats", (req: Request, res: Response) => {
+  const mode = typeof req.query.mode === "string" && req.query.mode.trim()
+    ? req.query.mode.trim()
+    : "unknown";
+  const deviceIds = getDeviceIdsFromQuery(req.query.device_ids ?? req.query.device_id);
+  if (deviceIds.length === 0) {
+    res.status(400).json({ error: "device_ids query parameter is required" });
+    return;
+  }
+
+  const intervalSeconds = req.query.interval_seconds
+    ? Number.parseInt(req.query.interval_seconds as string, 10)
+    : undefined;
+
+  res.json(getAppModeMeasurementStats(mode, deviceIds, intervalSeconds));
+});
+
+router.get("/", (req: Request, res: Response) => {
   const deviceId = req.query.device_id as string | undefined;
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
@@ -98,7 +189,7 @@ router.get("/", (req: Request, res: Response) => {
     return;
   }
 
-  const readings = queryReadings({
+  const readings = getAppReadings({
     deviceId,
     from,
     to,
@@ -110,7 +201,7 @@ router.get("/", (req: Request, res: Response) => {
 
 // GET /api/readings/latest/:deviceId
 router.get("/latest/:deviceId", (req: Request, res: Response) => {
-  const reading = getLatestReadingFromDb(req.params.deviceId as string);
+  const reading = getAppLatestReading(req.params.deviceId as string);
 
   if (!reading) {
     res.status(404).json({ error: "Device not found or no readings available" });
@@ -132,7 +223,7 @@ router.get("/stats", (req: Request, res: Response) => {
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
 
-  const stats = getStatsFromDb(deviceId, from, to);
+  const stats = getAppStats(deviceId, from, to);
 
   if (!stats) {
     res.status(404).json({ error: "No data found for the specified device and range" });

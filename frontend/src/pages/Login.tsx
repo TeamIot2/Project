@@ -1,9 +1,10 @@
 // Login page: centered card with email/password form
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useI18n } from "../contexts/I18nContext";
+import { apiUrl } from "../api";
 import { AlertCircle, Globe } from "../components/Icons";
 
 export default function Login() {
@@ -15,24 +16,24 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    const googleLoginError = sessionStorage.getItem("team2appGoogleLoginError");
+    if (!googleLoginError) return;
+    sessionStorage.removeItem("team2appGoogleLoginError");
+    setError(googleLoginError);
+  }, []);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
 
-    const normalizedEmail = email.trim().toLowerCase();
-    const isHackAdminShortcut = normalizedEmail === "hack1" && password.trim() === "";
-
-    if (!email.trim() || (!password && !isHackAdminShortcut)) {
+    if (!email.trim() || !password) {
       setError(t.login_error);
       return;
     }
 
     try {
-      if (isHackAdminShortcut) {
-        await login("admin@example.com", "admin123");
-      } else {
-        await login(email, password);
-      }
+      await login(email, password);
       navigate("/", { replace: true });
     } catch {
       setError(t.login_error);
@@ -40,52 +41,41 @@ export default function Login() {
   }
 
   function handleGoogleLogin() {
-    alert("Google login coming soon");
+    setError("");
+    const callbackUrl = `${window.location.origin}/auth/google/callback`;
+    window.location.assign(apiUrl("/auth/google/start", {
+      frontend_redirect_uri: callbackUrl,
+      return_to: "/",
+    }));
+  }
+
+  async function handleQuickUserLogin() {
+    setError("");
+    try {
+      await login("uzivatel1@email.com", "uzivatel1");
+      navigate("/", { replace: true });
+    } catch {
+      setError(t.login_error);
+    }
   }
 
   return (
     <div className="login-page">
-      {/* Blurred app preview background */}
-      <div className="login-blur-bg" aria-hidden="true">
-        <div className="login-fake-dashboard">
-          <div className="fake-sidebar">
-            <div className="fake-logo" />
-            <div className="fake-nav-item" /><div className="fake-nav-item active" /><div className="fake-nav-item" /><div className="fake-nav-item" />
-          </div>
-          <div className="fake-content">
-            <div className="fake-header" />
-            <div className="fake-charts-row">
-              <div className="fake-area-chart chart-green" />
-              <div className="fake-area-chart chart-orange" />
-            </div>
-            <div className="fake-charts-row">
-              <div className="fake-area-chart chart-blue" />
-              <div className="fake-area-chart chart-red" />
-            </div>
-            <div className="fake-charts-row">
-              <div className="fake-area-chart chart-purple" />
-              <div className="fake-area-chart chart-cyan" />
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* Language toggle in top-right corner */}
-      <div className="login-lang-toggle">
-        <button
-          className="lang-toggle"
-          onClick={() => setLocale(locale === "cs" ? "en" : "cs")}
-          title={t.language}
-        >
-          <Globe size={16} />
-          <span>{locale === "cs" ? "CZ" : "EN"}</span>
-        </button>
-      </div>
-
       <div className="login-card">
+        <div className="login-lang-toggle">
+          <button
+            className="lang-toggle"
+            onClick={() => setLocale(locale === "cs" ? "en" : "cs")}
+            title={t.language}
+          >
+            <Globe size={16} />
+            <span>{locale === "cs" ? "CZ" : "EN"}</span>
+          </button>
+        </div>
+
         <div className="login-header">
           <span className="login-brand-icon">IoT</span>
           <h1 className="login-title">Team2App</h1>
-          <p className="login-subtitle">{t.env_monitoring}</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
@@ -104,7 +94,7 @@ export default function Login() {
               id="email"
               type="email"
               className="form-input"
-              placeholder="admin@example.com"
+              placeholder="admin@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -135,26 +125,17 @@ export default function Login() {
           </button>
 
           <div className="login-divider">
-            <span>or</span>
+            <span>{locale === "cs" ? "nebo" : "or"}</span>
           </div>
 
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="btn btn-outline login-btn"
-              onClick={async () => {
-                setError("");
-                try {
-                  await login("admin@example.com", "admin123");
-                  navigate("/", { replace: true });
-                } catch {
-                  setError(t.login_error);
-                }
-              }}
-            >
-              {t.instant_login}
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-outline login-btn"
+            onClick={handleQuickUserLogin}
+            disabled={loading}
+          >
+            {locale === "cs" ? "Přihlásit jako uzivatel1" : "Sign in as uzivatel1"}
+          </button>
 
           <button
             type="button"

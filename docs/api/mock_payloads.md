@@ -142,41 +142,66 @@ This is the best default payload shape for gateway-to-cloud communication in thi
 }
 ```
 
-## Recommended gateway batch payload
+## Current gateway ingest payload
 
-The gateway should usually send batches, not single samples:
+The backend ingest endpoint accepts a `GatewayIngestPayload` with a `readings` array.
+For the current local real-sensor development flow, Node-RED sends each valid ESP32 JSON line immediately as a one-reading payload. This keeps frontend-visible values close to the current 5-second sensor cadence.
 
 ```json
 {
   "gateway_id": "node-red-gw-01",
-  "sent_at": "2026-03-17T18:50:00.000Z",
+  "sent_at": "2026-06-03T22:30:00.000Z",
   "sequence": 17,
-  "readings": []
+  "readings": [
+    {
+      "device_id": "esp32-001",
+      "gateway_id": "node-red-gw-01",
+      "timestamp": "2026-06-03T22:30:00.000Z",
+      "co2_ppm": 608,
+      "temperature_c": 28.56,
+      "humidity_pct": 31.43,
+      "pressure_hpa": 987.89,
+      "light_lux": 7.5,
+      "sound_level_adc": 1385,
+      "sound_peak_adc": 1420,
+      "sound_rms_adc": 1390,
+      "sound_event": false,
+      "battery_v": 0,
+      "source": "uart"
+    }
+  ]
 }
 ```
 
-Batching is better for:
+Current low-latency behavior:
+
+- ESP32 source target interval: `5 seconds`
+- Node-RED forwarding: immediate, one valid reading per POST
+- Frontend latest-reading polling: `5 seconds`
+- Payload shape still uses `readings: []` so the backend can keep the same ingest contract
+
+Batching can still be reintroduced later for production if the project needs:
 
 - lower HTTP overhead
-- easier retries
-- simpler local buffering in Node-RED
-- better alignment with downsampling and delayed upload
+- stronger retry buffering
+- gateway-side downsampling
+- delayed upload when the laptop/gateway loses connectivity
 
 ## Files generated for this project
 
 Generated mock samples are stored in:
 
-- [minimal-reading.json](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/docs/api/mocks/minimal-reading.json)
-- [environmental-reading.json](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/docs/api/mocks/environmental-reading.json)
-- [gateway-batch.json](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/docs/api/mocks/gateway-batch.json)
-- [raw-device-payload.json](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/docs/api/mocks/raw-device-payload.json)
-- [environmental-timeseries.json](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/docs/api/mocks/environmental-timeseries.json)
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\docs\api\mocks\minimal-reading.json`
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\docs\api\mocks\environmental-reading.json`
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\docs\api\mocks\gateway-batch.json`
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\docs\api\mocks\raw-device-payload.json`
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\docs\api\mocks\environmental-timeseries.json`
 
 ## Generator
 
 The generator script is:
 
-- [generateMockPayloads.ts](/d:/WORK/WORKSPACES/ProjectIoT_Workspace/PROJECT/backend/scripts/generateMockPayloads.ts)
+- `U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\backend\scripts\generateMockPayloads.ts`
 
 Run it from `PROJECT/backend` with:
 

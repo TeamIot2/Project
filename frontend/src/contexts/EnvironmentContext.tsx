@@ -3,6 +3,17 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { apiGet } from "../api";
 import type { EnvironmentMode, EnvironmentPreset } from "../types";
+import {
+  calculatePointMetricScore,
+  getPointQuality,
+  isPointMetricCritical,
+  isPointMetricNotification,
+  loadStoredModeThresholdPoints,
+  MODE_THRESHOLD_UPDATED_EVENT,
+  rangeToPoint,
+  resolvePointThreshold,
+  type ModeThresholdPoints,
+} from "../utils/modeThresholdStorage";
 
 type Quality = "good" | "moderate" | "poor";
 
@@ -13,10 +24,34 @@ interface EnvironmentState {
   error: string | null;
   setEnvironment: (mode: EnvironmentMode) => void;
   getQuality: (metricKey: string, value: number) => Quality;
+  getMetricScore: (metricKey: string, value: number) => number;
+  isCritical: (metricKey: string, value: number) => boolean;
+  isNotificationReached: (metricKey: string, value: number) => boolean;
   currentPreset: EnvironmentPreset | null;
 }
 
 const EnvironmentContext = createContext<EnvironmentState | null>(null);
+
+function resolveThreshold(thresholds: EnvironmentPreset["thresholds"], metricKey: string) {
+  const aliases: Record<string, string[]> = {
+    noise_adc: ["sound_level_adc"],
+    sound_level_adc: ["noise_adc"],
+  };
+
+  if (thresholds[metricKey]) return thresholds[metricKey];
+  for (const alias of aliases[metricKey] ?? []) {
+    if (thresholds[alias]) return thresholds[alias];
+  }
+  return null;
+}
+
+function calculateMetricScore(metricKey: string, value: number, thresholds: EnvironmentPreset["thresholds"]): number {
+  if (!Number.isFinite(value)) return 0;
+
+  const threshold = resolveThreshold(thresholds, metricKey);
+  if (!threshold) return 60;
+  return calculatePointMetricScore(value, rangeToPoint(threshold));
+}
 
 export function useEnvironment(): EnvironmentState {
   const ctx = useContext(EnvironmentContext);
@@ -27,6 +62,9 @@ export function useEnvironment(): EnvironmentState {
 export function EnvironmentProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<EnvironmentMode>("office");
   const [presets, setPresets] = useState<EnvironmentPreset[]>([]);
+  const [thresholdPointOverrides, setThresholdPointOverrides] = useState<ModeThresholdPoints>(
+    loadStoredModeThresholdPoints
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +85,22 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const refreshThresholdOverrides = () => {
+      setThresholdPointOverrides(loadStoredModeThresholdPoints());
+    };
+
+    refreshThresholdOverrides();
+    window.addEventListener(MODE_THRESHOLD_UPDATED_EVENT, refreshThresholdOverrides);
+    window.addEventListener("storage", refreshThresholdOverrides);
+    return () => {
+      window.removeEventListener(MODE_THRESHOLD_UPDATED_EVENT, refreshThresholdOverrides);
+      window.removeEventListener("storage", refreshThresholdOverrides);
+    };
+  }, []);
+
   const currentPreset = presets.find((p) => p.id === mode) ?? null;
+  const currentPointThresholds = thresholdPointOverrides[mode];
 
   /**
    * Evaluate quality of a metric value against current environment thresholds.
@@ -55,15 +108,40 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
   function getQuality(metricKey: string, value: number): Quality {
     if (!currentPreset) return "moderate"; // No data yet — show neutral state
 
-    const threshold = currentPreset.thresholds[metricKey];
+    const pointThreshold = resolvePointThreshold(currentPointThresholds, metricKey);
+    if (pointThreshold) return getPointQuality(value, pointThreshold);
+
+    const threshold = resolveThreshold(currentPreset.thresholds, metricKey);
     if (!threshold) return "moderate"; // Unknown metric — show neutral state
 
-    const [goodMin, goodMax] = threshold.good;
-    const [modMin, modMax] = threshold.moderate;
+    return getPointQuality(value, rangeToPoint(threshold));
+  }
 
-    if (value >= goodMin && value <= goodMax) return "good";
-    if (value >= modMin && value <= modMax) return "moderate";
-    return "poor";
+  function getMetricScore(metricKey: string, value: number): number {
+    if (!currentPreset) return 60;
+    const pointThreshold = resolvePointThreshold(currentPointThresholds, metricKey);
+    if (pointThreshold) return calculatePointMetricScore(value, pointThreshold);
+    return calculateMetricScore(metricKey, value, currentPreset.thresholds);
+  }
+
+  function isCritical(metricKey: string, value: number): boolean {
+    if (!currentPreset) return false;
+    const pointThreshold = resolvePointThreshold(currentPointThresholds, metricKey);
+    if (pointThreshold) return isPointMetricCritical(value, pointThreshold);
+
+    const threshold = resolveThreshold(currentPreset.thresholds, metricKey);
+    if (!threshold) return false;
+    return isPointMetricCritical(value, rangeToPoint(threshold));
+  }
+
+  function isNotificationReached(metricKey: string, value: number): boolean {
+    if (!currentPreset) return false;
+    const pointThreshold = resolvePointThreshold(currentPointThresholds, metricKey);
+    if (pointThreshold) return isPointMetricNotification(value, pointThreshold);
+
+    const threshold = resolveThreshold(currentPreset.thresholds, metricKey);
+    if (!threshold) return false;
+    return isPointMetricNotification(value, rangeToPoint(threshold));
   }
 
   return (
@@ -75,6 +153,9 @@ export function EnvironmentProvider({ children }: { children: React.ReactNode })
         error,
         setEnvironment: setMode,
         getQuality,
+        getMetricScore,
+        isCritical,
+        isNotificationReached,
         currentPreset,
       }}
     >
@@ -101,8 +182,8 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "office",
-    name: "Office",
-    description: "Optimized for productivity",
+    name: "Unicorn",
+    description: "Unicorn environment",
     icon: "briefcase",
     thresholds: {
       co2_ppm: { good: [400, 800], moderate: [800, 1200] },
@@ -115,7 +196,7 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "sport",
-    name: "Gym",
+    name: "Gym(M)",
     description: "Gym environment monitoring",
     icon: "activity",
     thresholds: {
@@ -129,7 +210,7 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "outdoor",
-    name: "Garden",
+    name: "Garden(M)",
     description: "Garden environment monitoring",
     icon: "tree",
     thresholds: {
@@ -143,7 +224,7 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "school",
-    name: "School",
+    name: "School(M)",
     description: "School environment",
     icon: "sun",
     thresholds: {
@@ -157,7 +238,7 @@ const fallbackPresets: EnvironmentPreset[] = [
   },
   {
     id: "factory",
-    name: "Factory",
+    name: "Factory(M)",
     description: "Industrial environment",
     icon: "wind",
     thresholds: {

@@ -37,3 +37,7 @@ frontend/public/images/generate_assets.py
 
 # Internal project status (not for repo)
 docs/project_status.md
+
+# Local runtime data
+.run-logs/
+backend/data/local-*.db

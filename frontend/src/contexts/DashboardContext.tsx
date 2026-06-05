@@ -1,11 +1,14 @@
 // Shared dashboard state for dual-view synchronization
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { EnvironmentMode } from "../types";
 
 type DeviceModeAssignments = Record<string, EnvironmentMode[]>;
 
-const DEVICE_ASSIGNMENTS_VERSION = "2026-04-19-v2";
+export const REAL_OFFICE_DEVICE_ID = "esp32-001";
+export const REAL_BEDROOM_DEVICE_ID = "esp32-003";
+
+const DEVICE_ASSIGNMENTS_VERSION = "2026-06-04-greenhouse-unassigned-v3";
 const ALL_ENV_MODES: EnvironmentMode[] = [
   "sleep",
   "office",
@@ -16,11 +19,13 @@ const ALL_ENV_MODES: EnvironmentMode[] = [
   "greenhouse",
 ];
 const DEFAULT_DEVICE_MODE_ASSIGNMENTS: DeviceModeAssignments = {
-  "esp32-001": ["sport", "school"],
-  "esp32-002": ["office"],
-  "esp32-003": ["sleep"],
-  "esp32-004": ["greenhouse"],
+  "esp32-001": ["sleep", "office"],
+  "esp32-002": ["sport"],
   "esp32-005": ["school"],
+};
+
+const LOCKED_MODE_DEVICE_IDS: Partial<Record<EnvironmentMode, string>> = {
+  office: REAL_OFFICE_DEVICE_ID,
 };
 
 function cloneDefaultAssignments(): DeviceModeAssignments {
@@ -44,6 +49,32 @@ function sanitizeAssignments(candidate: unknown): DeviceModeAssignments {
       normalized[deviceId] = filtered;
     }
   }
+
+  return normalized;
+}
+
+function normalizeAssignments(candidate: DeviceModeAssignments): DeviceModeAssignments {
+  const validModes = new Set<EnvironmentMode>(ALL_ENV_MODES);
+  const normalized: DeviceModeAssignments = {};
+
+  for (const [deviceId, modes] of Object.entries(candidate)) {
+    const uniqueModes = new Set<EnvironmentMode>();
+    for (const mode of modes) {
+      if (!validModes.has(mode)) continue;
+      const lockedDeviceId = LOCKED_MODE_DEVICE_IDS[mode];
+      if (lockedDeviceId && deviceId !== lockedDeviceId) continue;
+      uniqueModes.add(mode);
+    }
+
+    const sortedModes = ALL_ENV_MODES.filter((mode) => uniqueModes.has(mode));
+    if (sortedModes.length > 0) {
+      normalized[deviceId] = sortedModes;
+    }
+  }
+
+  const officeModes = new Set(normalized[REAL_OFFICE_DEVICE_ID] ?? []);
+  officeModes.add("office");
+  normalized[REAL_OFFICE_DEVICE_ID] = ALL_ENV_MODES.filter((mode) => officeModes.has(mode));
 
   return normalized;
 }
@@ -82,25 +113,34 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
-  const [deviceModeAssignments, setDeviceModeAssignments] = useState<DeviceModeAssignments>(() => {
+  const [deviceModeAssignments, setDeviceModeAssignmentsState] = useState<DeviceModeAssignments>(() => {
     try {
       const storedVersion = localStorage.getItem("deviceModeAssignmentsVersion");
       const raw = localStorage.getItem("deviceModeAssignments");
       if (storedVersion !== DEVICE_ASSIGNMENTS_VERSION || !raw) {
-        return cloneDefaultAssignments();
+        return normalizeAssignments(cloneDefaultAssignments());
       }
 
       const parsed = sanitizeAssignments(JSON.parse(raw));
       if (Object.keys(parsed).length === 0) {
-        return cloneDefaultAssignments();
+        return normalizeAssignments(cloneDefaultAssignments());
       }
 
-      return parsed;
+      return normalizeAssignments(parsed);
     } catch {
-      return cloneDefaultAssignments();
+      return normalizeAssignments(cloneDefaultAssignments());
     }
   });
   const [showConfirmModal, setShowConfirmModal] = useState<"start" | "stop" | null>(null);
+
+  const setDeviceModeAssignments = useCallback<React.Dispatch<React.SetStateAction<DeviceModeAssignments>>>((action) => {
+    setDeviceModeAssignmentsState((prev) => {
+      const next = typeof action === "function"
+        ? (action as (current: DeviceModeAssignments) => DeviceModeAssignments)(prev)
+        : action;
+      return normalizeAssignments(next);
+    });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("deviceModeAssignments", JSON.stringify(deviceModeAssignments));

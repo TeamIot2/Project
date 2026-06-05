@@ -15,7 +15,7 @@ constexpr uint8_t MIC_PIN = 34;
 
 constexpr uint32_t USB_SERIAL_BAUD = 115200;
 constexpr uint32_t MHZ19_BAUD = 9600;
-constexpr unsigned long READ_INTERVAL_MS = 10000UL;
+constexpr unsigned long READ_INTERVAL_MS = 5000UL;
 constexpr unsigned long MHZ19_WARMUP_MS = 180000UL;
 
 constexpr uint8_t BME280_ADDR_PRIMARY = 0x77;
@@ -62,6 +62,8 @@ uint8_t bh1750Address = 0;
 
 unsigned long bootMs = 0;
 unsigned long lastReadMs = 0;
+bool measurementEnabled = true;
+String usbCommandBuffer;
 
 bool beginBme280() {
   if (bme280.begin(BME280_ADDR_PRIMARY, &Wire)) {
@@ -94,6 +96,50 @@ bool beginBh1750() {
 void flushMhZ19Input() {
   while (mhz19Serial.available() > 0) {
     mhz19Serial.read();
+  }
+}
+
+void applyMeasurementControl(bool enabled) {
+  if (measurementEnabled == enabled) {
+    return;
+  }
+
+  measurementEnabled = enabled;
+  Serial.printf("# Team2App monitoring %s\n", measurementEnabled ? "resumed" : "paused");
+}
+
+void handleUsbCommandLine(String line) {
+  line.trim();
+  line.toUpperCase();
+
+  if (line == "TEAM2APP:PAUSE" || line == "TEAM2APP:STOP" || line == "PAUSE" || line == "STOP") {
+    applyMeasurementControl(false);
+    return;
+  }
+
+  if (line == "TEAM2APP:RESUME" || line == "TEAM2APP:START" || line == "RESUME" || line == "START") {
+    applyMeasurementControl(true);
+  }
+}
+
+void handleUsbCommands() {
+  while (Serial.available() > 0) {
+    const char ch = static_cast<char>(Serial.read());
+    if (ch == '\r') {
+      continue;
+    }
+
+    if (ch == '\n') {
+      handleUsbCommandLine(usbCommandBuffer);
+      usbCommandBuffer = "";
+      continue;
+    }
+
+    if (usbCommandBuffer.length() < 64) {
+      usbCommandBuffer += ch;
+    } else {
+      usbCommandBuffer = "";
+    }
   }
 }
 
@@ -246,6 +292,7 @@ void printBootBanner() {
   }
 
   Serial.println(F("MH-Z19 will need about 3 minutes to warm up after power-on."));
+  Serial.println(F("Team2App control: send TEAM2APP:PAUSE or TEAM2APP:RESUME over USB serial."));
   Serial.println();
 }
 
@@ -353,6 +400,13 @@ void setup() {
 }
 
 void loop() {
+  handleUsbCommands();
+
+  if (!measurementEnabled) {
+    delay(50);
+    return;
+  }
+
   if (millis() - lastReadMs < READ_INTERVAL_MS) {
     delay(50);
     return;

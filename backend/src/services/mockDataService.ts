@@ -64,8 +64,8 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
   {
     info: {
       device_id: "esp32-001",
-      name: "Gym",
-      location: "Gym",
+      name: "Unicorn-ESP32",
+      location: "Unicorn-ESP32",
       last_seen: NOW.toISOString(),
       status: "online" as DeviceStatus,
       firmware_version: "1.2.0",
@@ -79,8 +79,8 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
   {
     info: {
       device_id: "esp32-002",
-      name: "Office",
-      location: "Office - 2nd Floor",
+      name: "Gym (mock)",
+      location: "Gym placeholder",
       last_seen: NOW.toISOString(),
       status: "online" as DeviceStatus,
       firmware_version: "1.2.0",
@@ -93,24 +93,9 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
   },
   {
     info: {
-      device_id: "esp32-003",
-      name: "Bedroom",
-      location: "Bedroom",
-      last_seen: NOW.toISOString(),
-      status: "online" as DeviceStatus,
-      firmware_version: "1.1.3",
-      battery_v: 3.82,
-    },
-    seed: 256,
-    batteryStart: 4.1,
-    tempOffset: -0.8,
-    co2Scale: 0.8,
-  },
-  {
-    info: {
       device_id: "esp32-004",
-      name: "Greenhouse",
-      location: "Greenhouse",
+      name: "Greenhouse (mock)",
+      location: "Greenhouse placeholder",
       last_seen: NOW.toISOString(),
       status: "online" as DeviceStatus,
       firmware_version: "1.0.0",
@@ -124,8 +109,8 @@ const DEVICE_CONFIGS: DeviceConfig[] = [
   {
     info: {
       device_id: "esp32-005",
-      name: "School",
-      location: "School",
+      name: "School (mock)",
+      location: "School placeholder",
       last_seen: NOW.toISOString(),
       status: "online" as DeviceStatus,
       firmware_version: "1.2.1",
