@@ -70,7 +70,7 @@ const BOOTSTRAP_DEMO_DEVICES = readBooleanEnv("BOOTSTRAP_DEMO_DEVICES", true);
 // ============================================================
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("X-Content-Type-Options", "nosniff");

@@ -1,7 +1,7 @@
 // Devices page: expandable device list with sensor details
 
 import { useState, useEffect, type MouseEvent } from "react";
-import { apiGet, apiPatch } from "../api";
+import { apiDelete, apiGet, apiPatch } from "../api";
 import { useI18n } from "../contexts/I18nContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
 import { REAL_BEDROOM_DEVICE_ID, REAL_OFFICE_DEVICE_ID, useDashboard } from "../contexts/DashboardContext";
@@ -27,6 +27,10 @@ const ALL_ENV_MODES: EnvironmentMode[] = [
 const LOCKED_MODE_DEVICE_IDS: Partial<Record<EnvironmentMode, string>> = {
   office: REAL_OFFICE_DEVICE_ID,
 };
+
+function hasMeasuredBatteryVoltage(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
 
 const DEVICE_PAGE_ORDER: Record<string, number> = {
   [REAL_OFFICE_DEVICE_ID]: 0,
@@ -112,6 +116,10 @@ function sortDevicesForDevicesPage(devices: DeviceInfo[]): DeviceInfo[] {
       if (orderDiff !== 0) return orderDiff;
       return a.name.localeCompare(b.name);
     });
+}
+
+function filterDisconnectedDevices(devices: DeviceInfo[], disconnectedDeviceIds: Set<string>): DeviceInfo[] {
+  return devices.filter((device) => !disconnectedDeviceIds.has(device.device_id));
 }
 
 function normalizeGatewayUrl(rawValue: string): string {
@@ -261,7 +269,7 @@ function DeviceRow({
               <Clock size={12} />
               <span>Last data: {timeAgo(device.last_seen)} {t.ago}</span>
             </div>
-            {device.battery_v !== undefined && (
+            {hasMeasuredBatteryVoltage(device.battery_v) && (
               <div className="device-meta">
                 <Battery size={12} />
                 <span>{device.battery_v.toFixed(1)}V</span>
@@ -376,7 +384,7 @@ export default function Devices() {
   const { t, locale } = useI18n();
   const isCs = locale === "cs";
   const { modeMetaOverrides } = useSettingsState();
-  const { setDeviceModeAssignments } = useDashboard();
+  const { disconnectedDeviceIds, setDisconnectedDeviceIds, setDeviceModeAssignments } = useDashboard();
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -392,6 +400,9 @@ export default function Devices() {
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
   const [wifiGatewayUrl, setWifiGatewayUrl] = useState("");
   const [wifiGatewayName, setWifiGatewayName] = useState("");
+  const [disconnectTarget, setDisconnectTarget] = useState<DeviceInfo | null>(null);
+  const [disconnectingDevice, setDisconnectingDevice] = useState(false);
+  const [disconnectMessage, setDisconnectMessage] = useState<string | null>(null);
 
   const discoveryText = {
     searchButton: isCs ? "Hledat zařízení" : "Search for devices",
@@ -452,10 +463,10 @@ export default function Devices() {
 
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
-      .then((devs) => setDevices(sortDevicesForDevicesPage(devs)))
+      .then((devs) => setDevices(filterDisconnectedDevices(sortDevicesForDevicesPage(devs), disconnectedDeviceIds)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [disconnectedDeviceIds]);
 
   async function handleRenameDevice(deviceId: string, nextName: string): Promise<void> {
     const updated = await apiPatch<DeviceInfo>(`/devices/${deviceId}`, { name: nextName });
@@ -469,20 +480,24 @@ export default function Devices() {
   }
 
   function handleDisconnectDevice(deviceId: string) {
-    setDevices((prev) => prev.filter((d) => d.device_id !== deviceId));
+    const device = devices.find((candidate) => candidate.device_id === deviceId);
+    if (!device) return;
+    setDisconnectMessage(null);
+    setDisconnectTarget(device);
   }
 
   // Close modal on Escape key
   useEffect(() => {
-    if (!connectModalOpen && !searchModalOpen) return;
+    if (!connectModalOpen && !searchModalOpen && !disconnectTarget) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (searchModalOpen) resetSearchModal();
+      if (disconnectTarget) resetDisconnectModal();
+      else if (searchModalOpen) resetSearchModal();
       else resetConnectModal();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [connectModalOpen, searchModalOpen]);
+  }, [connectModalOpen, disconnectTarget, searchModalOpen]);
 
   function resetConnectModal() {
     setConnectModalOpen(false);
@@ -499,12 +514,49 @@ export default function Devices() {
     setDiscoveryMessage(null);
   }
 
+  function resetDisconnectModal() {
+    if (disconnectingDevice) return;
+    setDisconnectTarget(null);
+    setDisconnectMessage(null);
+  }
+
   function handleConnectOverlayMouseDown(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) resetConnectModal();
   }
 
   function handleSearchOverlayMouseDown(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) resetSearchModal();
+  }
+
+  function handleDisconnectOverlayMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) resetDisconnectModal();
+  }
+
+  async function confirmDisconnectDevice() {
+    if (!disconnectTarget || disconnectingDevice) return;
+
+    try {
+      setDisconnectingDevice(true);
+      setDisconnectMessage(null);
+      await apiDelete<{ ok: boolean; device_id: string }>(`/devices/${encodeURIComponent(disconnectTarget.device_id)}`);
+
+      setDisconnectedDeviceIds((prev) => {
+        const next = new Set(prev);
+        next.add(disconnectTarget.device_id);
+        return next;
+      });
+      setDeviceModeAssignments((prev) => {
+        const next = { ...prev };
+        delete next[disconnectTarget.device_id];
+        return next;
+      });
+      setDevices((prev) => prev.filter((device) => device.device_id !== disconnectTarget.device_id));
+      setDisconnectTarget(null);
+    } catch (err) {
+      setDisconnectMessage(err instanceof Error ? err.message : t.error);
+    } finally {
+      setDisconnectingDevice(false);
+    }
   }
 
   function addDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
@@ -812,6 +864,53 @@ export default function Devices() {
           </div>
         ))}
       </div>
+
+      {disconnectTarget && (
+        <div className="modal-overlay" onMouseDown={handleDisconnectOverlayMouseDown}>
+          <div
+            className="modal-card settings-alert-confirm-modal devices-disconnect-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="disconnect-device-title"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="devices-connect-title" id="disconnect-device-title">
+              {isCs ? "Odpojit zařízení" : "Disconnect device"}
+            </h3>
+            <p className="modal-text">
+              {isCs
+                ? `Opravdu chcete odpojit zařízení „${getDisplayDeviceName(disconnectTarget, t)}“?`
+                : `Are you sure you want to disconnect "${getDisplayDeviceName(disconnectTarget, t)}"?`}
+            </p>
+            <p className="settings-preference-desc">
+              {isCs
+                ? "Historická měření zůstanou uložená. Pokud zařízení dál posílá data přes gateway, může se znovu zaregistrovat."
+                : "Historical readings will remain stored. If the device keeps sending data through the gateway, it can register again."}
+            </p>
+            {disconnectMessage && <p className="devices-connect-message">{disconnectMessage}</p>}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={resetDisconnectModal}
+                disabled={disconnectingDevice}
+              >
+                {t.confirm_cancel}
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => void confirmDisconnectDevice()}
+                disabled={disconnectingDevice}
+              >
+                {disconnectingDevice
+                  ? (isCs ? "Odpojuji..." : "Disconnecting...")
+                  : (isCs ? "Odpojit" : "Disconnect")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {connectModalOpen && (
         <div className="modal-overlay" onMouseDown={handleConnectOverlayMouseDown}>

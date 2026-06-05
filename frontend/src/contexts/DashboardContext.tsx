@@ -9,6 +9,7 @@ export const REAL_OFFICE_DEVICE_ID = "esp32-001";
 export const REAL_BEDROOM_DEVICE_ID = "esp32-003";
 
 const DEVICE_ASSIGNMENTS_VERSION = "2026-06-04-greenhouse-unassigned-v3";
+const DISCONNECTED_DEVICES_STORAGE_KEY = "disconnectedDeviceIds";
 const ALL_ENV_MODES: EnvironmentMode[] = [
   "sleep",
   "office",
@@ -79,6 +80,18 @@ function normalizeAssignments(candidate: DeviceModeAssignments): DeviceModeAssig
   return normalized;
 }
 
+function loadDisconnectedDeviceIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISCONNECTED_DEVICES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((deviceId): deviceId is string => typeof deviceId === "string" && deviceId.trim().length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
 interface DashboardState {
   isMeasuring: boolean;
   setIsMeasuring: React.Dispatch<React.SetStateAction<boolean>>;
@@ -94,6 +107,8 @@ interface DashboardState {
   setSelectedDevice: React.Dispatch<React.SetStateAction<string>>;
   deviceModeAssignments: DeviceModeAssignments;
   setDeviceModeAssignments: React.Dispatch<React.SetStateAction<DeviceModeAssignments>>;
+  disconnectedDeviceIds: Set<string>;
+  setDisconnectedDeviceIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   showConfirmModal: "start" | "stop" | null;
   setShowConfirmModal: React.Dispatch<React.SetStateAction<"start" | "stop" | null>>;
 }
@@ -113,6 +128,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [selectedDevices, setSelectedDevices] = useState<Set<string>>(new Set());
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
+  const [disconnectedDeviceIds, setDisconnectedDeviceIds] = useState<Set<string>>(loadDisconnectedDeviceIds);
   const [deviceModeAssignments, setDeviceModeAssignmentsState] = useState<DeviceModeAssignments>(() => {
     try {
       const storedVersion = localStorage.getItem("deviceModeAssignmentsVersion");
@@ -147,6 +163,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("deviceModeAssignmentsVersion", DEVICE_ASSIGNMENTS_VERSION);
   }, [deviceModeAssignments]);
 
+  useEffect(() => {
+    localStorage.setItem(DISCONNECTED_DEVICES_STORAGE_KEY, JSON.stringify(Array.from(disconnectedDeviceIds)));
+  }, [disconnectedDeviceIds]);
+
   return (
     <DashboardContext.Provider
       value={{
@@ -157,6 +177,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         expandedDevice, setExpandedDevice,
         selectedDevice, setSelectedDevice,
         deviceModeAssignments, setDeviceModeAssignments,
+        disconnectedDeviceIds, setDisconnectedDeviceIds,
         showConfirmModal, setShowConfirmModal,
       }}
     >

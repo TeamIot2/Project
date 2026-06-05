@@ -19,9 +19,15 @@ import { useSettingsState } from "../contexts/SettingsStateContext";
 import type { EnvironmentalReading, DeviceInfo, EnvironmentMode } from "../types";
 import { ChevronDown, Cpu, Wind, Thermometer, Droplets, Sun, Volume2, Activity, Co2Molecule, Moon, Briefcase } from "../components/Icons";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
-import { formatLocalDate, formatLocalTime } from "../utils/dateTime";
 import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import { withMockModeSuffix } from "../utils/modeLabels";
+import { estimateNoiseDbFromReading, formatApproximateNoiseDb, isNoiseMetricKey } from "../utils/noiseEstimate";
+import {
+  formatChartTimeInTimeZone,
+  formatDateForInputInTimeZone,
+  formatTimeForInputInTimeZone,
+  zonedDateTimeToUtcIso,
+} from "../utils/timeZone";
 import { useDashboard } from "../contexts/DashboardContext";
 import EnvironmentCarousel from "../components/EnvironmentCarousel";
 import { usePanelType } from "../components/DualViewShell";
@@ -103,20 +109,13 @@ type HistoryChartPoint = {
 
 type ChartMode = "individual" | "combined";
 
-function formatChartTimeLabel(timeMs: number, hours: number): string {
-  const date = new Date(timeMs);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    ...(hours > 24 ? { month: "short", day: "numeric" } : {}),
-  });
+function formatChartTimeLabel(timeMs: number, hours: number, timeZone: string, locale: string): string {
+  return formatChartTimeInTimeZone(timeMs, hours, timeZone, locale);
 }
 
-function emptyChartPoint(timeMs: number, hours: number): HistoryChartPoint {
+function emptyChartPoint(timeMs: number, hours: number, timeZone: string, locale: string): HistoryChartPoint {
   return {
-    time: formatChartTimeLabel(timeMs, hours),
+    time: formatChartTimeLabel(timeMs, hours, timeZone, locale),
     timeMs,
     co2_ppm: null,
     temperature_c: null,
@@ -170,11 +169,11 @@ function getGapMarkerTimes(readings: EnvironmentalReading[], hours: number): num
 }
 
 export default function History() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { theme } = useTheme();
   const { mode, setEnvironment } = useEnvironment();
-  const { modeMetaOverrides } = useSettingsState();
-  const { deviceModeAssignments } = useDashboard();
+  const { modeMetaOverrides, timezone } = useSettingsState();
+  const { deviceModeAssignments, disconnectedDeviceIds } = useDashboard();
   const panelType = usePanelType();
   const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
     withMockModeSuffix(modeId, modeMetaOverrides[modeId]?.name ?? fallback);
@@ -183,10 +182,10 @@ export default function History() {
   const [selectedRange, setSelectedRange] = useState(24);
   const [presetRangeAnchorIso, setPresetRangeAnchorIso] = useState(() => new Date().toISOString());
   const [customRangeActive, setCustomRangeActive] = useState(false);
-  const [intervalStartTime, setIntervalStartTime] = useState(() => formatLocalTime(new Date(Date.now() - 24 * 3600 * 1000)));
-  const [intervalStartDate, setIntervalStartDate] = useState(() => formatLocalDate(new Date(Date.now() - 24 * 3600 * 1000)));
-  const [intervalEndTime, setIntervalEndTime] = useState(() => formatLocalTime(new Date()));
-  const [intervalEndDate, setIntervalEndDate] = useState(() => formatLocalDate(new Date()));
+  const [intervalStartTime, setIntervalStartTime] = useState(() => formatTimeForInputInTimeZone(new Date(Date.now() - 24 * 3600 * 1000), timezone));
+  const [intervalStartDate, setIntervalStartDate] = useState(() => formatDateForInputInTimeZone(new Date(Date.now() - 24 * 3600 * 1000), timezone));
+  const [intervalEndTime, setIntervalEndTime] = useState(() => formatTimeForInputInTimeZone(new Date(), timezone));
+  const [intervalEndDate, setIntervalEndDate] = useState(() => formatDateForInputInTimeZone(new Date(), timezone));
   const [expandedHistoryDevice, setExpandedHistoryDevice] = useState<string | null>(null);
   const [selectedSensors, setSelectedSensors] = useState<Set<string>>(new Set(metrics.map(m => m.key)));
   const [chartMode, setChartMode] = useState<ChartMode>("individual");
@@ -217,11 +216,11 @@ export default function History() {
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
       .then((devs) => {
-        const sortedDevices = sortDevicesByStatus(devs);
+        const sortedDevices = sortDevicesByStatus(devs).filter((device) => !disconnectedDeviceIds.has(device.device_id));
         setDevices(sortedDevices);
       })
       .catch((err) => setError(err.message));
-  }, []); // Intentional: fetch device list once on mount only
+  }, [disconnectedDeviceIds]);
 
   useEffect(() => {
     if (devicesForMode.length === 0) {
@@ -245,19 +244,23 @@ export default function History() {
     if (!customRangeActive) return null;
     if (!intervalStartDate || !intervalStartTime || !intervalEndDate || !intervalEndTime) return null;
 
-    const fromDate = new Date(`${intervalStartDate}T${intervalStartTime}`);
-    const toDate = new Date(`${intervalEndDate}T${intervalEndTime}`);
+    const fromIso = zonedDateTimeToUtcIso(intervalStartDate, intervalStartTime, timezone);
+    const toIso = zonedDateTimeToUtcIso(intervalEndDate, intervalEndTime, timezone);
+    if (!fromIso || !toIso) return null;
+
+    const fromDate = new Date(fromIso);
+    const toDate = new Date(toIso);
 
     if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate >= toDate) {
       return null;
     }
 
     return {
-      from: fromDate.toISOString(),
-      to: toDate.toISOString(),
+      from: fromIso,
+      to: toIso,
       hours: Math.max(1, (toDate.getTime() - fromDate.getTime()) / 3600000),
     };
-  }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime]);
+  }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime, timezone]);
 
   // Show user-visible error when the custom date range is invalid
   useEffect(() => {
@@ -269,17 +272,33 @@ export default function History() {
       setRangeError(null);
       return;
     }
-    const fromDate = new Date(`${intervalStartDate}T${intervalStartTime}`);
-    const toDate = new Date(`${intervalEndDate}T${intervalEndTime}`);
+    const fromIso = zonedDateTimeToUtcIso(intervalStartDate, intervalStartTime, timezone);
+    const toIso = zonedDateTimeToUtcIso(intervalEndDate, intervalEndTime, timezone);
+    const fromDate = fromIso ? new Date(fromIso) : null;
+    const toDate = toIso ? new Date(toIso) : null;
 
-    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
       setRangeError(t.invalid_date_values);
-    } else if (fromDate >= toDate) {
+    } else if (fromDate.getTime() >= toDate.getTime()) {
       setRangeError(t.invalid_date_range);
     } else {
       setRangeError(null);
     }
-  }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime, t]);
+  }, [customRangeActive, intervalStartDate, intervalStartTime, intervalEndDate, intervalEndTime, t, timezone]);
+
+  useEffect(() => {
+    if (customRangeActive) return;
+
+    const presetToDate = new Date(presetRangeAnchorIso);
+    const presetToMs = Number.isNaN(presetToDate.getTime()) ? Date.now() : presetToDate.getTime();
+    const fromDate = new Date(presetToMs - selectedRange * 3600 * 1000);
+    const toDate = new Date(presetToMs);
+
+    setIntervalStartTime(formatTimeForInputInTimeZone(fromDate, timezone));
+    setIntervalStartDate(formatDateForInputInTimeZone(fromDate, timezone));
+    setIntervalEndTime(formatTimeForInputInTimeZone(toDate, timezone));
+    setIntervalEndDate(formatDateForInputInTimeZone(toDate, timezone));
+  }, [customRangeActive, presetRangeAnchorIso, selectedRange, timezone]);
 
   const activeInterval = useMemo(() => {
     if (customRangeActive && customInterval) return customInterval;
@@ -335,27 +354,27 @@ export default function History() {
       .slice()
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     const gapPoints = getGapMarkerTimes(sortedReadings, effectiveRangeHours).map((timeMs) =>
-      emptyChartPoint(timeMs, effectiveRangeHours)
+      emptyChartPoint(timeMs, effectiveRangeHours, timezone, locale)
     );
     const sampledPoints = sortedReadings
       .filter((_, i) => i % step === 0)
       .map((r): HistoryChartPoint => {
         const timeMs = new Date(r.timestamp).getTime();
         return {
-          time: formatChartTimeLabel(timeMs, effectiveRangeHours),
+          time: formatChartTimeLabel(timeMs, effectiveRangeHours, timezone, locale),
           timeMs,
           co2_ppm: r.co2_ppm,
           temperature_c: r.temperature_c,
           humidity_pct: r.humidity_pct,
           pressure_hpa: r.pressure_hpa,
           light_lux: r.light_lux,
-          noise_adc: r.sound_level_adc,
+          noise_adc: estimateNoiseDbFromReading(r),
         };
       })
       .filter((point) => Number.isFinite(point.timeMs));
 
     return [...sampledPoints, ...gapPoints].sort((a, b) => a.timeMs - b.timeMs);
-  }, [readings, effectiveRangeHours]);
+  }, [readings, effectiveRangeHours, locale, timezone]);
 
   const displayData = useMemo(() => {
     if (!selectedDevice) return [] as typeof chartData;
@@ -379,6 +398,7 @@ export default function History() {
     const metric = metricConfigByKey[metricKey];
     const decimals = metric?.decimals ?? (Number.isInteger(value) ? 0 : 1);
     const formattedValue = formatMetricNumber(value, decimals);
+    if (isNoiseMetricKey(metricKey)) return `${formatApproximateNoiseDb(value)} ${metric?.unit ?? "dB"}`;
     return metric?.unit ? `${formattedValue} ${metric.unit}` : formattedValue;
   }
 
@@ -540,10 +560,10 @@ export default function History() {
                   setSelectedRange(tr.hours);
                   setPresetRangeAnchorIso(toDate.toISOString());
                   setCustomRangeActive(false);
-                  setIntervalStartTime(formatLocalTime(fromDate));
-                  setIntervalStartDate(formatLocalDate(fromDate));
-                  setIntervalEndTime(formatLocalTime(toDate));
-                  setIntervalEndDate(formatLocalDate(toDate));
+                  setIntervalStartTime(formatTimeForInputInTimeZone(fromDate, timezone));
+                  setIntervalStartDate(formatDateForInputInTimeZone(fromDate, timezone));
+                  setIntervalEndTime(formatTimeForInputInTimeZone(toDate, timezone));
+                  setIntervalEndDate(formatDateForInputInTimeZone(toDate, timezone));
                 }}
               >
                 {tr.label}
@@ -722,7 +742,7 @@ export default function History() {
                       scale="time"
                       domain={chartTimeDomain}
                       tick={{ fontSize: xAxisTickFontSize, fill: axisColor }}
-                      tickFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours)}
+                      tickFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours, timezone, locale)}
                       tickCount={xTickCount}
                       stroke={axisStrokeColor}
                       padding={xAxisPadding}
@@ -739,7 +759,14 @@ export default function History() {
                     />
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      labelFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours)}
+                      labelFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours, timezone, locale)}
+                      formatter={(value, name, item) => {
+                        if (typeof value !== "number" || Number.isNaN(value)) {
+                          return [String(value ?? "--"), name];
+                        }
+                        const metricKey = String(item?.dataKey ?? metric.key);
+                        return [formatCombinedTooltipValue(metricKey, value), name];
+                      }}
                     />
                     <Area
                       type="monotone"
@@ -782,7 +809,7 @@ export default function History() {
                 scale="time"
                 domain={chartTimeDomain}
                 tick={{ fontSize: xAxisTickFontSize, fill: axisColor }}
-                tickFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours)}
+                tickFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours, timezone, locale)}
                 tickCount={xTickCount}
                 stroke={axisStrokeColor}
                 padding={xAxisPadding}
@@ -806,7 +833,7 @@ export default function History() {
               )}
               <Tooltip
                 contentStyle={tooltipStyle}
-                labelFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours)}
+                labelFormatter={(value) => formatChartTimeLabel(Number(value), effectiveRangeHours, timezone, locale)}
                 formatter={(value, name, item) => {
                   if (typeof value !== "number" || Number.isNaN(value)) {
                     return [String(value ?? "--"), name];

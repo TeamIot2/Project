@@ -23,7 +23,9 @@ import { apiGet, apiPatch } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import { withMockModeSuffix } from "../utils/modeLabels";
-import type { EnvironmentalReading, DeviceInfo, MeasurementUptimeResponse, ModeMeasurementStatsResponse } from "../types";
+import { estimateNoiseDbFromReading, formatApproximateNoiseDb, isNoiseMetricKey } from "../utils/noiseEstimate";
+import { formatClockInTimeZone } from "../utils/timeZone";
+import type { EnvironmentalReading, DeviceInfo, MeasurementUptimeResponse, ModeMeasurementStatsResponse, MetricConfig } from "../types";
 import type { Translations } from "../i18n/translations";
 import { METRICS as metrics, METRIC_COLORS as sensorColors, SENSOR_LABEL_KEYS as sensorLabelKeys } from "../constants/chartColors";
 import {
@@ -73,8 +75,8 @@ const iconMap: Record<string, typeof Wind> = {
 function getTrend(key: string, current: number | null, readings: EnvironmentalReading[]): { direction: "up" | "down" | "stable"; delta: number } {
   if (current === null || current === undefined || readings.length < 2) return { direction: "stable", delta: 0 };
   const oldest = readings[0];
-  const oldValue = key === "noise_adc" ? oldest.sound_level_adc : (oldest[key as keyof EnvironmentalReading] as number);
-  if (oldValue === undefined) return { direction: "stable", delta: 0 };
+  const oldValue = isNoiseMetricKey(key) ? estimateNoiseDbFromReading(oldest) : (oldest[key as keyof EnvironmentalReading] as number);
+  if (typeof oldValue !== "number" || !Number.isFinite(oldValue)) return { direction: "stable", delta: 0 };
   const diff = current - oldValue;
   const threshold = Math.abs(oldValue) * 0.02; // 2% change threshold
   if (Math.abs(diff) < threshold) return { direction: "stable", delta: 0 };
@@ -163,7 +165,8 @@ function calcAirQuality(
     scores.push(getMetricScore(key, val));
   }
 
-  scores.push(getMetricScore("noise_adc", reading.sound_level_adc));
+  const estimatedNoiseDb = estimateNoiseDbFromReading(reading);
+  scores.push(estimatedNoiseDb === null ? 60 : getMetricScore("noise_adc", estimatedNoiseDb));
 
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
@@ -176,18 +179,67 @@ function normalizeDashboardScoreByMode(score: number, mode: EnvironmentMode): nu
   return Math.round(Math.max(0, Math.min(100, score)));
 }
 
-function formatDurationSeconds(totalSeconds: number): string {
+function formatDurationSeconds(totalSeconds: number, locale = "en"): string {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const numberFormat = new Intl.NumberFormat(locale === "cs" ? "cs-CZ" : "en-US", {
+    maximumFractionDigits: 1,
+  });
+
+  const formatUnit = (value: number, singular: string, plural: string) => {
+    const rounded = Math.round(value * 10) / 10;
+    const unit = rounded === 1 ? singular : plural;
+    return `${numberFormat.format(rounded)} ${unit}`;
+  };
+
+  if (safeSeconds >= 86400) return formatUnit(safeSeconds / 86400, "day", "days");
+  if (safeSeconds >= 3600) return formatUnit(safeSeconds / 3600, "hour", "hours");
+  if (safeSeconds >= 60) return formatUnit(safeSeconds / 60, "minute", "minutes");
+  return formatUnit(Math.round(safeSeconds), "second", "seconds");
+}
+
+function formatLiveDurationSeconds(totalSeconds: number): string {
   const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const d = Math.floor(safeSeconds / 86400);
-  const h = Math.floor((safeSeconds % 86400) / 3600);
-  const m = Math.floor((safeSeconds % 3600) / 60);
-  const s = safeSeconds % 60;
-  const parts: string[] = [];
-  if (d > 0) parts.push(`${d}d`);
-  parts.push(`${h}h`);
-  parts.push(`${String(m).padStart(2, "0")}m`);
-  parts.push(`${String(s).padStart(2, "0")}s`);
-  return parts.join(" ");
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  const formattedHours = hours < 100 ? String(hours).padStart(2, "0") : String(hours);
+  return `${formattedHours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatMetricDisplayValue(metricKey: string, value: number | null, decimals: number): string {
+  if (value === null || !Number.isFinite(value)) return "--";
+  if (isNoiseMetricKey(metricKey)) return formatApproximateNoiseDb(value);
+  return value.toFixed(decimals);
+}
+
+function lowerCaseFirstDisplayWord(label: string, locale: string): string {
+  if (!label) return label;
+  if (/^[A-Z0-9]+$/.test(label)) return label;
+
+  const [firstChar] = Array.from(label);
+  if (!firstChar) return label;
+
+  return `${firstChar.toLocaleLowerCase(locale)}${label.slice(firstChar.length)}`;
+}
+
+function formatNotificationNumber(value: number, decimals: number, locale: string): string {
+  return new Intl.NumberFormat(locale === "cs" ? "cs-CZ" : "en-US", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals > 0 ? decimals : 0,
+  }).format(value);
+}
+
+function formatNotificationSensorText(
+  metric: MetricConfig,
+  value: number,
+  label: string,
+  locale: string
+): string {
+  const displayLabel = lowerCaseFirstDisplayWord(label, locale);
+  const displayValue = isNoiseMetricKey(metric.key)
+    ? formatApproximateNoiseDb(value)
+    : formatNotificationNumber(value, metric.decimals, locale);
+  return `${displayLabel} ${displayValue} ${metric.unit}`.trim();
 }
 
 /**
@@ -337,7 +389,7 @@ export default function Dashboard() {
   const { mode, getQuality, getMetricScore, isCritical, isNotificationReached, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
   const { theme } = useTheme();
-  const { modeMetaOverrides, notificationChannel, criticalAlertsEnabled } = useSettingsState();
+  const { modeMetaOverrides, notificationChannel, criticalAlertsEnabled, timezone } = useSettingsState();
   const { t, locale } = useI18n();
   const isCs = locale === "cs";
   const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
@@ -353,6 +405,7 @@ export default function Dashboard() {
     expandedDevice, setExpandedDevice,
     selectedDevice, setSelectedDevice,
     deviceModeAssignments, setDeviceModeAssignments,
+    disconnectedDeviceIds,
     showConfirmModal, setShowConfirmModal,
   } = useDashboard();
 
@@ -389,6 +442,11 @@ export default function Dashboard() {
   const getDisplayName = useCallback(
     (device: Pick<DeviceInfo, "device_id" | "name">) => getDisplayDeviceName(device, t),
     [t]
+  );
+  const filterConnectedDevices = useCallback(
+    (incomingDevices: DeviceInfo[]) =>
+      sortDevicesByStatus(incomingDevices).filter((device) => !disconnectedDeviceIds.has(device.device_id)),
+    [disconnectedDeviceIds]
   );
 
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
@@ -677,14 +735,18 @@ export default function Dashboard() {
 
   // Live clock - updates every second
   const [liveClock, setLiveClock] = useState(() =>
-    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+    formatClockInTimeZone(new Date(), timezone, locale)
   );
   useEffect(() => {
+    const updateClock = () => {
+      setLiveClock(formatClockInTimeZone(new Date(), timezone, locale));
+    };
+    updateClock();
     const clock = setInterval(() => {
-      setLiveClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+      updateClock();
     }, 1000);
     return () => clearInterval(clock);
-  }, []);
+  }, [locale, timezone]);
 
   // Refresh countdown timer (resets on each readings refresh)
   useEffect(() => {
@@ -703,7 +765,7 @@ export default function Dashboard() {
     async () => {
       try {
         const devs = await apiGet<DeviceInfo[]>("/devices");
-        const sortedDevices = sortDevicesByStatus(devs);
+        const sortedDevices = filterConnectedDevices(devs);
         const previousById = new Map(devices.map((d) => [d.device_id, d]));
         const nextById = new Map(sortedDevices.map((d) => [d.device_id, d]));
         const droppedActiveIds = isMeasuring
@@ -766,6 +828,7 @@ export default function Dashboard() {
       setSelectedDevices,
       setShowConfirmModal,
       getDisplayName,
+      filterConnectedDevices,
     ]
   );
 
@@ -773,7 +836,7 @@ export default function Dashboard() {
   useEffect(() => {
     apiGet<DeviceInfo[]>("/devices")
       .then((devs) => {
-        const sortedDevices = sortDevicesByStatus(devs);
+        const sortedDevices = filterConnectedDevices(devs);
         setDevices(sortedDevices);
         const eligible = sortedDevices.filter((d) => isDeviceEnabledForMode(d.device_id, mode));
         const onlineEligible = eligible.filter((d) => d.status === "online");
@@ -787,7 +850,22 @@ export default function Dashboard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setDevicesLoaded(true));
-  }, []); // Intentional: fetch device list once on mount only
+  }, [filterConnectedDevices, isDeviceEnabledForMode, mode, selectedDevice, setSelectedDevice, setSelectedDevices]);
+
+  useEffect(() => {
+    if (disconnectedDeviceIds.size === 0) return;
+
+    setDevices((prev) => prev.filter((device) => !disconnectedDeviceIds.has(device.device_id)));
+    setSelectedDevices((prev) => {
+      const next = new Set(prev);
+      disconnectedDeviceIds.forEach((deviceId) => next.delete(deviceId));
+      return next;
+    });
+
+    if (selectedDevice && disconnectedDeviceIds.has(selectedDevice)) {
+      setSelectedDevice("");
+    }
+  }, [disconnectedDeviceIds, selectedDevice, setSelectedDevice, setSelectedDevices]);
 
   useEffect(() => {
     if (!devicesLoaded) return;
@@ -860,14 +938,7 @@ export default function Dashboard() {
       ]);
       setCurrentReading(latest);
       setRecentReadings(recent.reverse());
-      setLastUpdate(
-        new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        })
-      );
+      setLastUpdate(formatClockInTimeZone(new Date(), timezone, locale));
       setRefreshCountdown(READING_REFRESH_INTERVAL_SECONDS);
       setError(null);
     } catch (err) {
@@ -875,7 +946,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDevice]);
+  }, [locale, selectedDevice, timezone]);
 
   useEffect(() => {
     if (!selectedDevice) {
@@ -936,7 +1007,7 @@ export default function Dashboard() {
     if (!measureStart) return;
     function tick() {
       const elapsed = Math.floor((Date.now() - measureStart!) / 1000);
-      setUptime(formatDurationSeconds(elapsed));
+      setUptime(formatLiveDurationSeconds(elapsed));
     }
     tick();
     const id = setInterval(tick, 1000);
@@ -957,14 +1028,14 @@ export default function Dashboard() {
         interval_seconds: String(READING_REFRESH_INTERVAL_SECONDS),
       });
 
-      setModeStatsUptime(response.uptime_seconds > 0 ? formatDurationSeconds(response.uptime_seconds) : "");
+      setModeStatsUptime(response.uptime_seconds > 0 ? formatDurationSeconds(response.uptime_seconds, locale) : "");
       setModeStatsReliability(response.expected_samples > 0 ? response.reliability_pct : null);
     } catch (err) {
       console.warn("Failed to fetch mode measurement stats:", err);
       setModeStatsUptime("");
       setModeStatsReliability(null);
     }
-  }, [mode, modeStatsDeviceIdsKey]);
+  }, [locale, mode, modeStatsDeviceIdsKey]);
 
   useEffect(() => {
     void fetchModeMeasurementStats();
@@ -981,7 +1052,7 @@ export default function Dashboard() {
    */
   function getSensorValue(key: string): number | null {
     if (!currentReading) return null;
-    if (key === "noise_adc") return currentReading.sound_level_adc;
+    if (isNoiseMetricKey(key)) return estimateNoiseDbFromReading(currentReading);
     return currentReading[key as keyof EnvironmentalReading] as number;
   }
 
@@ -990,7 +1061,7 @@ export default function Dashboard() {
    */
   function getSparklineData(key: string): Record<string, unknown>[] {
     return recentReadings.map((r) => ({
-      value: key === "noise_adc" ? r.sound_level_adc : (r[key as keyof EnvironmentalReading] as number),
+      value: isNoiseMetricKey(key) ? estimateNoiseDbFromReading(r) : (r[key as keyof EnvironmentalReading] as number),
     }));
   }
 
@@ -1007,61 +1078,69 @@ export default function Dashboard() {
       : airQualityScore >= 60
         ? t.quality_moderate
         : t.quality_poor;
-  const criticalSensorLabels = useMemo(() => {
+  const criticalSensorItems = useMemo(() => {
     if (!currentReading || !criticalAlertsEnabled || notificationChannel === "none") return [];
 
     return metrics
       .map((metric) => {
-        const value = metric.key === "noise_adc"
-          ? currentReading.sound_level_adc
+        const value = isNoiseMetricKey(metric.key)
+          ? estimateNoiseDbFromReading(currentReading)
           : currentReading[metric.key as keyof EnvironmentalReading];
 
         if (typeof value !== "number" || !isCritical(metric.key, value)) return null;
-        return t[sensorLabelKeys[metric.key]] ?? metric.label;
+        const label = t[sensorLabelKeys[metric.key]] ?? metric.label;
+        return {
+          key: metric.key,
+          text: formatNotificationSensorText(metric, value, label, locale),
+        };
       })
-      .filter((label): label is string => typeof label === "string" && label.length > 0);
-  }, [criticalAlertsEnabled, currentReading, isCritical, notificationChannel, t]);
-  const notificationSensorLabels = useMemo(() => {
+      .filter((item): item is { key: string; text: string } => item !== null && item.text.length > 0);
+  }, [criticalAlertsEnabled, currentReading, isCritical, locale, notificationChannel, t]);
+  const notificationSensorItems = useMemo(() => {
     if (!currentReading || notificationChannel === "none") return [];
 
     return metrics
       .map((metric) => {
-        const value = metric.key === "noise_adc"
-          ? currentReading.sound_level_adc
+        const value = isNoiseMetricKey(metric.key)
+          ? estimateNoiseDbFromReading(currentReading)
           : currentReading[metric.key as keyof EnvironmentalReading];
 
         if (typeof value !== "number") return null;
         if (criticalAlertsEnabled && isCritical(metric.key, value)) return null;
         if (!isNotificationReached(metric.key, value)) return null;
-        return t[sensorLabelKeys[metric.key]] ?? metric.label;
+        const label = t[sensorLabelKeys[metric.key]] ?? metric.label;
+        return {
+          key: metric.key,
+          text: formatNotificationSensorText(metric, value, label, locale),
+        };
       })
-      .filter((label): label is string => typeof label === "string" && label.length > 0);
-  }, [criticalAlertsEnabled, currentReading, isCritical, isNotificationReached, notificationChannel, t]);
+      .filter((item): item is { key: string; text: string } => item !== null && item.text.length > 0);
+  }, [criticalAlertsEnabled, currentReading, isCritical, isNotificationReached, locale, notificationChannel, t]);
   const activeNotification = useMemo(() => {
-    if (criticalSensorLabels.length > 0) {
+    if (criticalSensorItems.length > 0) {
       const message = isCs
-        ? `Kritická hodnota dosažena: ${criticalSensorLabels.join(", ")}.`
-        : `Critical value reached: ${criticalSensorLabels.join(", ")}.`;
+        ? `Kritická hodnota dosažena: ${criticalSensorItems.map((item) => item.text).join(", ")}.`
+        : `Critical value reached: ${criticalSensorItems.map((item) => item.text).join(", ")}.`;
       return {
-        key: `critical:${criticalSensorLabels.join("|")}`,
+        key: `critical:${criticalSensorItems.map((item) => item.key).join("|")}`,
         message,
         tone: "critical" as const,
       };
     }
 
-    if (notificationSensorLabels.length > 0) {
+    if (notificationSensorItems.length > 0) {
       const message = isCs
-        ? `Notifikační hodnota dosažena: ${notificationSensorLabels.join(", ")}.`
-        : `Notification value reached: ${notificationSensorLabels.join(", ")}.`;
+        ? `Notifikační hodnota dosažena: ${notificationSensorItems.map((item) => item.text).join(", ")}.`
+        : `Notification value reached: ${notificationSensorItems.map((item) => item.text).join(", ")}.`;
       return {
-        key: `notification:${notificationSensorLabels.join("|")}`,
+        key: `notification:${notificationSensorItems.map((item) => item.key).join("|")}`,
         message,
         tone: "notification" as const,
       };
     }
 
     return null;
-  }, [criticalSensorLabels, isCs, notificationSensorLabels]);
+  }, [criticalSensorItems, isCs, notificationSensorItems]);
   const shouldShowNotification = Boolean(activeNotification && activeNotification.key !== dismissedNotificationKey);
 
   // Desktop hero insight text
@@ -1555,7 +1634,7 @@ export default function Dashboard() {
                 <span className="sensor-label">{translatedLabel}</span>
                 <div className="sensor-value">
                   <span className="value-number">
-                    {value !== null ? value.toFixed(metric.decimals) : "--"}
+                    {formatMetricDisplayValue(metric.key, value, metric.decimals)}
                   </span>
                   <span className="value-unit">{metric.unit}</span>
                 </div>
@@ -1589,19 +1668,21 @@ export default function Dashboard() {
                     <span className="popover-title">{translatedLabel}</span>
                     <button className="popover-close" onClick={() => setSelectedSensor(null)}>&times;</button>
                   </div>
-                  <div className="popover-value">{value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small></div>
+                  <div className="popover-value">{formatMetricDisplayValue(metric.key, value, metric.decimals)} <small>{metric.unit}</small></div>
                   <div className="popover-stats">
                     {(() => {
-                      const values = recentReadings.map(r => metric.key === "noise_adc" ? r.sound_level_adc : (r[metric.key as keyof EnvironmentalReading] as number)).filter(v => v !== undefined);
+                      const values = recentReadings
+                        .map(r => isNoiseMetricKey(metric.key) ? estimateNoiseDbFromReading(r) : (r[metric.key as keyof EnvironmentalReading] as number))
+                        .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
                       if (values.length === 0) return null;
                       const min = Math.min(...values);
                       const max = Math.max(...values);
                       const avg = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
                       return (
                         <>
-                          <div className="popover-stat"><span>Min</span><strong>{min}</strong></div>
-                          <div className="popover-stat"><span>Max</span><strong>{max}</strong></div>
-                          <div className="popover-stat"><span>Avg</span><strong>{avg}</strong></div>
+                          <div className="popover-stat"><span>Min</span><strong>{formatMetricDisplayValue(metric.key, min, metric.decimals)}</strong></div>
+                          <div className="popover-stat"><span>Max</span><strong>{formatMetricDisplayValue(metric.key, max, metric.decimals)}</strong></div>
+                          <div className="popover-stat"><span>Avg</span><strong>{formatMetricDisplayValue(metric.key, avg, metric.decimals)}</strong></div>
                         </>
                       );
                     })()}
@@ -1716,8 +1797,8 @@ export default function Dashboard() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
         <div className="monitoring-stats-text">
-          <span>Uptime: {modeStatsUptime || "--"}</span>
-          <span>Interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+          <span>Total uptime: {modeStatsUptime || "--"}</span>
+          <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
           <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
         </div>
       </section>
@@ -1850,8 +1931,8 @@ export default function Dashboard() {
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                     <div className="figma-measure-stats-text">
-                      <span>Uptime: {modeStatsUptime || "--"}</span>
-                      <span>Interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+                      <span>Total uptime: {modeStatsUptime || "--"}</span>
+                      <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
                       <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
                     </div>
                   </div>
@@ -1964,7 +2045,7 @@ export default function Dashboard() {
                           <div className="figma-sensor-icon" style={{ color: borderColor }}><IconComponent size={18} /></div>
                           <span className="figma-sensor-label">{translatedLabel}</span>
                           <span className="figma-sensor-value">
-                            {value !== null ? value.toFixed(metric.decimals) : "--"} <small>{metric.unit}</small>
+                            {formatMetricDisplayValue(metric.key, value, metric.decimals)} <small>{metric.unit}</small>
                           </span>
                           <span className={`figma-sensor-quality ${quality}`}>{getQualityLabel(quality)}</span>
                         </div>

@@ -80,7 +80,7 @@ export const METRICS: MetricConfig[] = [
   { key: "humidity_pct",  label: "Humidity",     unit: "%",    color: METRIC_CSS_VARS.humidity_pct,  icon: "droplets",     decimals: 1, chartDomain: [20, 80] },
   { key: "pressure_hpa",  label: "Pressure",     unit: "hPa",  color: METRIC_CSS_VARS.pressure_hpa,  icon: "gauge",        decimals: 0, chartDomain: [960, 1060] },
   { key: "light_lux",     label: "Light",        unit: "lux",  color: METRIC_CSS_VARS.light_lux,     icon: "sun",          decimals: 0, chartDomain: [0, 1000] },
-  { key: "noise_adc",     label: "Noise",        unit: "ADC",  color: METRIC_CSS_VARS.noise_adc,     icon: "volume",       decimals: 0, chartDomain: [0, 1024] },
+  { key: "noise_adc",     label: "Noise",        unit: "dB",   color: METRIC_CSS_VARS.noise_adc,     icon: "volume",       decimals: 0, chartDomain: [30, 100] },
 ];
 
 /**

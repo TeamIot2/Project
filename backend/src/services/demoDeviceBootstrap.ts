@@ -12,10 +12,10 @@ const DEMO_DEVICE_ROSTER: Array<{
   name: string;
   location: string;
   firmware_version: string;
-  battery_v: number;
+  battery_v?: number;
   status: DeviceStatus;
 }> = [
-  { device_id: "esp32-001", name: "Unicorn-ESP32", location: "Unicorn-ESP32", firmware_version: "1.2.0", battery_v: 3.95, status: "online" },
+  { device_id: "esp32-001", name: "Unicorn-ESP32", location: "Unicorn-ESP32", firmware_version: "1.2.0", status: "online" },
   { device_id: "esp32-002", name: "Gym (mock)", location: "Gym placeholder", firmware_version: "1.2.0", battery_v: 4.02, status: "online" },
   { device_id: "esp32-004", name: "Greenhouse (mock)", location: "Greenhouse placeholder", firmware_version: "1.0.0", battery_v: 3.88, status: "online" },
   { device_id: "esp32-005", name: "School (mock)", location: "School placeholder", firmware_version: "1.2.1", battery_v: 4.01, status: "online" },

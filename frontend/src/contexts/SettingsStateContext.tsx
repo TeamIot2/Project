@@ -1,6 +1,8 @@
 // Shared settings state so desktop and mobile panels stay in sync in dual view
 
 import { createContext, useContext, useState, useRef, useEffect, useCallback, type ReactNode, type ChangeEvent } from "react";
+import { useAuth } from "./AuthContext";
+import { normalizeTimeZone } from "../utils/timeZone";
 
 type NotificationChannel = "none" | "in_app" | "email";
 
@@ -45,6 +47,7 @@ interface SettingsState {
   setExpandedModeId: React.Dispatch<React.SetStateAction<string | null>>;
 
   avatarPreview: string | null;
+  setAvatarFromUser: (avatarUrl: string | null | undefined) => void;
   handleAvatarChange: (event: ChangeEvent<HTMLInputElement>) => void;
   removeAvatar: () => void;
   avatarInputRef: React.RefObject<HTMLInputElement>;
@@ -56,6 +59,15 @@ interface SettingsState {
 }
 
 const SettingsStateContext = createContext<SettingsState | null>(null);
+const TIMEZONE_STORAGE_KEY = "userTimeZone";
+
+function loadStoredTimeZone(): string {
+  try {
+    return normalizeTimeZone(localStorage.getItem(TIMEZONE_STORAGE_KEY));
+  } catch {
+    return normalizeTimeZone(undefined);
+  }
+}
 
 function loadStoredCustomModes(): CustomMode[] {
   try {
@@ -123,8 +135,9 @@ function loadStoredModeMetaOverrides(): ModeMetaOverrides {
 }
 
 export function SettingsStateProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [nickname, setNickname] = useState("");
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [timezone, setTimezoneState] = useState(loadStoredTimeZone);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
   const [notificationChannel, setNotificationChannel] = useState<NotificationChannel>("in_app");
@@ -185,11 +198,24 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
   // Adding is always allowed: at 3/3 we rotate favorites by replacing the oldest.
   const canAddFavorite = true;
 
+  const setTimezone = useCallback((value: string) => {
+    setTimezoneState(normalizeTimeZone(value));
+  }, []);
+
   useEffect(() => {
-    return () => {
-      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    };
-  }, [avatarPreview]);
+    setTimezoneState(normalizeTimeZone(user?.timezone));
+  }, [user?.id, user?.timezone]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TIMEZONE_STORAGE_KEY, timezone);
+    } catch { /* ignore */ }
+  }, [timezone]);
+
+  const setAvatarFromUser = useCallback((avatarUrl: string | null | undefined) => {
+    setAvatarPreview(avatarUrl?.trim() || null);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  }, []);
 
   function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -211,17 +237,28 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    setAvatarPreview(URL.createObjectURL(file));
-    setProfileMessage("Profile image updated.");
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setProfileMessage("avatar_invalid_type");
+        if (avatarInputRef.current) avatarInputRef.current.value = "";
+        return;
+      }
+
+      setAvatarPreview(reader.result);
+      setProfileMessage("Profile image updated.");
+    };
+    reader.onerror = () => {
+      setProfileMessage("avatar_invalid_type");
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    };
+    reader.readAsDataURL(file);
   }
 
   function removeAvatar() {
-    if (avatarPreview) {
-      URL.revokeObjectURL(avatarPreview);
-      setAvatarPreview(null);
-      setProfileMessage("Profile image removed.");
-    }
+    setAvatarPreview(null);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+    setProfileMessage("Profile image removed.");
   }
 
   return (
@@ -236,7 +273,7 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
         modeMetaOverrides, setModeMetaOverrides,
         newModeName, setNewModeName,
         expandedModeId, setExpandedModeId,
-        avatarPreview, handleAvatarChange, removeAvatar, avatarInputRef,
+        avatarPreview, setAvatarFromUser, handleAvatarChange, removeAvatar, avatarInputRef,
         favoriteModes, toggleFavoriteMode, isFavorite, canAddFavorite,
       }}
     >

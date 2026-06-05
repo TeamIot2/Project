@@ -186,22 +186,28 @@ img {
   align-items: center;
   padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
+  position: relative;
+  z-index: 30;
   font-size: 0.875rem;
   font-weight: 700;
   margin-bottom: 1rem;
   text-align: center;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
 }
 
 .critical-alert-banner {
   background: rgba(220, 38, 38, 0.92);
-  color: #FF4B4B;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
   border: 1px solid rgba(255, 80, 80, 0.86);
   box-shadow: 0 10px 24px rgba(127, 29, 29, 0.24);
 }
 
 .notification-alert-banner {
   background: rgba(22, 163, 74, 0.92);
-  color: #B8FFCF;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
   border: 1px solid rgba(74, 222, 128, 0.82);
   box-shadow: 0 10px 24px rgba(20, 83, 45, 0.22);
 }
@@ -210,12 +216,26 @@ img {
   grid-column: 2;
   margin: 0;
   text-align: center;
-  -webkit-text-stroke: 0.35px rgba(0, 0, 0, 0.9);
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  -webkit-text-stroke: 0.9px #000000;
   paint-order: stroke fill;
   text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.9),
-    1px 0 0 rgba(0, 0, 0, 0.45),
-    -1px 0 0 rgba(0, 0, 0, 0.45);
+    -1px -1px 0 #000000,
+    0 -1px 0 #000000,
+    1px -1px 0 #000000,
+    -1px 0 0 #000000,
+    1px 0 0 #000000,
+    -1px 1px 0 #000000,
+    0 1px 0 #000000,
+    1px 1px 0 #000000;
+}
+
+@media (min-width: 768px) {
+  .dashboard-notification-banner p {
+    font-size: 1.05rem;
+    line-height: 1.35;
+  }
 }
 
 .dashboard-notification-close {
@@ -229,7 +249,8 @@ img {
   border: 1px solid rgba(0, 0, 0, 0.22);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-  color: currentColor;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
   cursor: pointer;
 }
 
@@ -745,6 +766,17 @@ img {
   color: var(--text-muted);
 }
 
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239C9590' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -1027,6 +1059,15 @@ img {
   justify-content: center;
   font-size: 1rem;
   font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.user-avatar-sm-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .user-dropdown {
@@ -10897,12 +10938,10 @@ html[data-style] .devices-modal-close:hover {
 
   [data-theme="dark"][data-style="16"] .figma-tab.active {
     color: #ECEFF5 !important;
-    -webkit-text-stroke: 0.45px rgba(30, 35, 45, 0.86);
+    -webkit-text-stroke: 0.65px #07090f;
     paint-order: stroke fill;
-    text-shadow:
-      0 0 7px rgba(255, 255, 255, 0.99),
-      0 0 16px rgba(255, 255, 255, 0.95),
-      0 0 28px rgba(255, 255, 255, 0.86) !important;
+    text-shadow: none !important;
+    filter: none !important;
     background: rgb(62, 68, 80) !important;
     border-color: var(--figma-dark-frame-border) !important;
     border-bottom-color: transparent !important;
@@ -11449,4 +11488,35 @@ html[data-theme="dark"] .login-divider::after,
 html[data-theme="dark"][data-style] .login-divider::before,
 html[data-theme="dark"][data-style] .login-divider::after {
   background: rgba(203, 213, 225, 0.42) !important;
+}
+
+/* Final history range controls: keep native picker icons readable in both themes. */
+.history-page .history-time-input,
+.history-page .history-date-input {
+  color-scheme: light;
+}
+
+.history-page .history-time-input::-webkit-calendar-picker-indicator,
+.history-page .history-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: brightness(0) saturate(100%) invert(28%) sepia(10%) saturate(697%) hue-rotate(182deg) brightness(90%) contrast(89%);
+  opacity: 0.82;
+}
+
+html[data-theme="dark"] .history-page .history-time-input,
+html[data-theme="dark"] .history-page .history-date-input {
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] .history-page .history-time-input::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] .history-page .history-date-input::-webkit-calendar-picker-indicator {
+  filter: brightness(0) saturate(100%) invert(79%) sepia(10%) saturate(316%) hue-rotate(178deg) brightness(93%) contrast(88%);
+  opacity: 0.94;
+}
+
+.history-page .history-sensor-list {
+  justify-content: center !important;
+  padding-left: 0.625rem !important;
+  padding-right: 0.625rem !important;
+  text-align: center;
 }

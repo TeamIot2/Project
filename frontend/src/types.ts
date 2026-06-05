@@ -74,6 +74,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar_url?: string;
+  timezone?: string;
 }
 
 export interface ThresholdRange {

@@ -38,6 +38,12 @@ export interface GoogleUserProfile {
   avatarUrl?: string;
 }
 
+export interface UserProfileUpdate {
+  name?: string;
+  avatarUrl?: string | null;
+  timezone?: string;
+}
+
 const BUILTIN_USERS: StoredUser[] = [
   {
     id: "usr-admin",
@@ -45,6 +51,7 @@ const BUILTIN_USERS: StoredUser[] = [
     name: "Admin",
     role: "admin",
     password: "admin",
+    timezone: "Europe/Prague",
   },
   {
     id: "usr-uzivatel1",
@@ -52,6 +59,7 @@ const BUILTIN_USERS: StoredUser[] = [
     name: "uzivatel1",
     role: "viewer",
     password: "uzivatel1",
+    timezone: "Europe/Prague",
   },
 ];
 
@@ -82,6 +90,11 @@ function addColumnIfMissing(tableName: string, columnName: string, definition: s
   }
 }
 
+function normalizeBatteryVoltage(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
+  return value;
+}
+
 function deviceFromRow(row: Record<string, unknown>): DeviceInfo {
   return {
     device_id: row.device_id as string,
@@ -90,7 +103,7 @@ function deviceFromRow(row: Record<string, unknown>): DeviceInfo {
     last_seen: row.last_seen as string,
     status: row.status as "online" | "offline" | "error",
     firmware_version: (row.firmware_version as string) || undefined,
-    battery_v: row.battery_v as number | undefined,
+    battery_v: normalizeBatteryVoltage(row.battery_v),
     monitoring_enabled: row.monitoring_enabled === undefined ? true : Number(row.monitoring_enabled) !== 0,
     monitoring_command_seq: Number(row.monitoring_command_seq ?? 0),
     monitoring_updated_at: (row.monitoring_updated_at as string) || undefined,
@@ -158,6 +171,7 @@ export async function initDatabase(): Promise<void> {
       password TEXT NOT NULL,
       google_id TEXT,
       avatar_url TEXT,
+      timezone TEXT NOT NULL DEFAULT 'Europe/Prague',
       auth_provider TEXT NOT NULL DEFAULT 'password'
     )
   `);
@@ -168,6 +182,7 @@ export async function initDatabase(): Promise<void> {
   addColumnIfMissing("devices", "measurement_started_at", "TEXT");
   addColumnIfMissing("users", "google_id", "TEXT");
   addColumnIfMissing("users", "avatar_url", "TEXT");
+  addColumnIfMissing("users", "timezone", "TEXT NOT NULL DEFAULT 'Europe/Prague'");
   addColumnIfMissing("users", "auth_provider", "TEXT NOT NULL DEFAULT 'password'");
   seedBuiltinUsers();
 
@@ -216,16 +231,16 @@ function userFromRow(row: Record<string, unknown>): User {
     name: row.name as string,
     role: row.role as UserRole,
     avatar_url: (row.avatar_url as string) || undefined,
+    timezone: (row.timezone as string) || "Europe/Prague",
   };
 }
 
 function seedBuiltinUsers(): void {
   const stmt = db.prepare(
-    `INSERT INTO users (id, email, name, role, password)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO users (id, email, name, role, password, timezone)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        email = excluded.email,
-       name = excluded.name,
        role = excluded.role,
        password = excluded.password`
   );
@@ -237,6 +252,7 @@ function seedBuiltinUsers(): void {
       user.name,
       user.role,
       user.password,
+      user.timezone ?? "Europe/Prague",
     ]);
   }
 
@@ -271,6 +287,30 @@ export function getUserByIdFromDb(userId: string): User | null {
   return user;
 }
 
+export function updateUserProfileInDb(userId: string, update: UserProfileUpdate): User | null {
+  const existing = getUserByIdFromDb(userId);
+  if (!existing) return null;
+
+  const nextName = update.name?.trim() || existing.name;
+  const hasAvatarUpdate = Object.prototype.hasOwnProperty.call(update, "avatarUrl");
+  const nextTimezone = update.timezone?.trim() || existing.timezone || "Europe/Prague";
+
+  if (hasAvatarUpdate) {
+    db.run(
+      "UPDATE users SET name = ?, avatar_url = ?, timezone = ? WHERE id = ?",
+      [nextName, update.avatarUrl ?? null, nextTimezone, userId]
+    );
+  } else {
+    db.run(
+      "UPDATE users SET name = ?, timezone = ? WHERE id = ?",
+      [nextName, nextTimezone, userId]
+    );
+  }
+
+  saveToDisk();
+  return getUserByIdFromDb(userId);
+}
+
 export function upsertGoogleUserInDb(profile: GoogleUserProfile): User {
   const normalizedEmail = profile.email.trim().toLowerCase();
   const displayName = profile.name.trim() || normalizedEmail;
@@ -283,9 +323,11 @@ export function upsertGoogleUserInDb(profile: GoogleUserProfile): User {
     existingByGoogleId.free();
     db.run(
       `UPDATE users
-       SET email = ?, name = ?, avatar_url = ?, auth_provider = 'google'
+       SET email = ?,
+           name = COALESCE(NULLIF(name, ''), ?),
+           auth_provider = 'google'
        WHERE id = ?`,
-      [normalizedEmail, displayName, avatarUrl, existing.id]
+      [normalizedEmail, displayName, existing.id]
     );
     saveToDisk();
     return getUserByIdFromDb(existing.id) ?? existing;
@@ -299,9 +341,11 @@ export function upsertGoogleUserInDb(profile: GoogleUserProfile): User {
     existingByEmail.free();
     db.run(
       `UPDATE users
-       SET google_id = ?, name = ?, avatar_url = ?, auth_provider = 'google'
+       SET google_id = ?,
+           name = COALESCE(NULLIF(name, ''), ?),
+           auth_provider = 'google'
        WHERE id = ?`,
-      [profile.googleId, displayName, avatarUrl, existing.id]
+      [profile.googleId, displayName, existing.id]
     );
     saveToDisk();
     return getUserByIdFromDb(existing.id) ?? existing;
@@ -587,7 +631,7 @@ export function insertReadings(readings: EnvironmentalReading[]): number {
       r.sound_peak_adc ?? 0,
       r.sound_rms_adc ?? 0,
       r.sound_event ? 1 : 0,
-      r.battery_v ?? null,
+      normalizeBatteryVoltage(r.battery_v) ?? null,
       r.gateway_id ?? null,
       r.source ?? null,
     ]);
@@ -777,7 +821,7 @@ function rowToReading(row: Record<string, unknown>): EnvironmentalReading {
     sound_peak_adc: safeNumber(row.sound_peak_adc, "sound_peak_adc"),
     sound_rms_adc: safeNumber(row.sound_rms_adc, "sound_rms_adc"),
     sound_event: (row.sound_event as number) === 1,
-    battery_v: row.battery_v as number | undefined,
+    battery_v: normalizeBatteryVoltage(row.battery_v),
     gateway_id: row.gateway_id as string | undefined,
     source: row.source as string | undefined,
   };

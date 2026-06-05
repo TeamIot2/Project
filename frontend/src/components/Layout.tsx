@@ -199,7 +199,11 @@ export default function Layout() {
         <div className="sidebar-footer">
           <div className="sidebar-user">
             <div className="user-avatar-sm">
-              {user?.name?.charAt(0).toUpperCase() ?? "U"}
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="user-avatar-sm-img" />
+              ) : (
+                user?.name?.charAt(0).toUpperCase() ?? "U"
+              )}
             </div>
             <div className="user-info">
               <span className="user-name">{user?.name ?? "User"}</span>
@@ -291,10 +295,14 @@ export default function Layout() {
               aria-haspopup="menu"
             >
               <div className="user-avatar-sm">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" className="user-avatar-sm-img" />
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                )}
               </div>
               <span className="user-menu-name">{user?.name ?? "User"}</span>
               <ChevronDown size={16} />
@@ -311,7 +319,7 @@ export default function Layout() {
                   className="dropdown-item"
                   onClick={() => {
                     setUserMenuOpen(false);
-                    navigate("/settings#user-profile");
+                    navigate("/settings#user-profile", { state: { scrollTarget: "user-profile", at: Date.now() } });
                   }}
                 >
                   <Settings size={16} />

@@ -13,6 +13,7 @@ interface AuthState {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   completeTokenLogin: (token: string) => Promise<void>;
+  updateCurrentUser: (nextUser: User) => void;
   logout: () => void;
 }
 
@@ -91,6 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const updateCurrentUser = useCallback((nextUser: User) => {
+    setUser(nextUser);
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     setToken(null);
@@ -107,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         login,
         completeTokenLogin,
+        updateCurrentUser,
         logout,
       }}
     >

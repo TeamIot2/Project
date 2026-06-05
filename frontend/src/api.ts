@@ -105,3 +105,15 @@ export async function apiPatch<T>(
   });
   return handleResponse<T>(response);
 }
+
+/**
+ * DELETE request.
+ */
+export async function apiDelete<T>(path: string): Promise<T> {
+  const url = buildUrl(path);
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  return handleResponse<T>(response);
+}

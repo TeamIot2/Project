@@ -3,25 +3,31 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useLocation } from "react-router-dom";
+import { apiPatch } from "../api";
 import { useAuth } from "../contexts/AuthContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
-import type { EnvironmentMode, ThresholdRange } from "../types";
+import type { EnvironmentMode, ThresholdRange, User } from "../types";
 import {
   clonePointThresholds,
   cloneThresholdPoint,
+  BEDROOM_MODE_ID,
   MODE_THRESHOLD_STORAGE_KEY,
+  OFFICE_FROM_BEDROOM_MIGRATION_KEY,
   notifyModeThresholdsUpdated,
+  normalizeThresholdPointForMetric,
   parseThresholdNumber,
   storedThresholdToPoint,
   thresholdsToPoints,
+  UNICORN_MODE_ID,
   type StoredModeThresholds,
   type StoredThresholdValue,
   type ThresholdPoint,
 } from "../utils/modeThresholdStorage";
 import { withMockModeSuffix } from "../utils/modeLabels";
+import { getTimeZoneOptions } from "../utils/timeZone";
 
 type ModeThresholdDrafts = Record<string, Record<string, ThresholdPoint>>;
 type ModeCardMeta = {
@@ -48,14 +54,15 @@ const ENVIRONMENT_NAME_MAX_LENGTH = 50;
 const ENVIRONMENT_DESCRIPTION_MAX_LENGTH = 120;
 const UNSAFE_TEXT_PATTERN = /[<>\\{}[\]`]/;
 const CONTROL_TEXT_PATTERN = /[\u0000-\u001F\u007F]/;
+const PROFILE_SCROLL_OFFSET_PX = 18;
 const RECOMMENDED_CZ_THRESHOLD_POINTS: Record<string, ThresholdPoint> = {
   co2_ppm: { ideal: 0, lowerBad: null, upperBad: 1500, notification: 1000, critical: 2000 },
   temperature_c: { ideal: 21, lowerBad: 10, upperBad: 30, notification: 28, critical: 35 },
   humidity_pct: { ideal: 45, lowerBad: 25, upperBad: 75, notification: 70, critical: 90 },
   pressure_hpa: { ideal: 1013, lowerBad: 970, upperBad: 1050, notification: 1045, critical: 1070 },
   light_lux: { ideal: 500, lowerBad: 50, upperBad: 1200, notification: 1000, critical: 2000 },
-  noise_adc: { ideal: 0, lowerBad: null, upperBad: 2400, notification: 2100, critical: 2800 },
-  sound_level_adc: { ideal: 0, lowerBad: null, upperBad: 2400, notification: 2100, critical: 2800 },
+  noise_adc: { ideal: 30, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
+  sound_level_adc: { ideal: 30, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
 };
 
 function normalizeEnvironmentText(value: string): string {
@@ -64,6 +71,47 @@ function normalizeEnvironmentText(value: string): string {
 
 function hasUnsafeText(value: string): boolean {
   return UNSAFE_TEXT_PATTERN.test(value) || CONTROL_TEXT_PATTERN.test(value);
+}
+
+function findScrollParent(element: HTMLElement): HTMLElement | Window {
+  let parent = element.parentElement;
+
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    const overflowY = style.overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && parent.scrollHeight > parent.clientHeight) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+
+  return window;
+}
+
+function scrollElementIntoVisibleStart(element: HTMLElement): void {
+  const scrollParent = findScrollParent(element);
+
+  if (scrollParent === window) {
+    const targetTop = window.scrollY + element.getBoundingClientRect().top - PROFILE_SCROLL_OFFSET_PX;
+    window.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+    return;
+  }
+
+  const scrollElement = scrollParent as HTMLElement;
+  const parentRect = scrollElement.getBoundingClientRect();
+  const targetTop =
+    scrollElement.scrollTop +
+    element.getBoundingClientRect().top -
+    parentRect.top -
+    PROFILE_SCROLL_OFFSET_PX;
+
+  scrollElement.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+}
+
+function scrollToUserProfileHeading(): void {
+  const target = document.getElementById("user-profile");
+  if (!target) return;
+  scrollElementIntoVisibleStart(target);
 }
 
 function storedToPointThresholds(
@@ -77,7 +125,7 @@ function storedToPointThresholds(
   for (const [metricKey, storedThreshold] of Object.entries(storedMode)) {
     const normalizedThreshold = storedThresholdToPoint(storedThreshold);
     if (normalizedThreshold) {
-      result[metricKey] = normalizedThreshold;
+      result[metricKey] = normalizeThresholdPointForMetric(metricKey, normalizedThreshold);
     }
   }
 
@@ -85,7 +133,7 @@ function storedToPointThresholds(
 }
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, updateCurrentUser } = useAuth();
   const { presets } = useEnvironment();
   const { locale, t, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
@@ -102,7 +150,7 @@ export default function Settings() {
     modeMetaOverrides, setModeMetaOverrides,
     newModeName, setNewModeName,
     expandedModeId, setExpandedModeId,
-    avatarPreview, handleAvatarChange, removeAvatar, avatarInputRef,
+    avatarPreview, setAvatarFromUser, handleAvatarChange, removeAvatar, avatarInputRef,
     toggleFavoriteMode, isFavorite,
   } = useSettingsState();
 
@@ -114,6 +162,7 @@ export default function Settings() {
   const [showDisableCriticalAlertsModal, setShowDisableCriticalAlertsModal] = useState(false);
   const [showDeleteProfileModal, setShowDeleteProfileModal] = useState(false);
   const [deleteEnvironmentTargetId, setDeleteEnvironmentTargetId] = useState<string | null>(null);
+  const timeZoneOptions = useMemo(() => getTimeZoneOptions(locale, timezone), [locale, timezone]);
 
   const defaultThresholdTemplate = useMemo(() => {
     if (presets.length === 0) return {};
@@ -127,12 +176,29 @@ export default function Settings() {
   }, [user?.name]); // Intentional: only run on user name change
 
   useEffect(() => {
+    setAvatarFromUser(user?.avatar_url ?? null);
+  }, [setAvatarFromUser, user?.avatar_url, user?.id]);
+
+  useEffect(() => {
     if (location.hash !== "#user-profile") return;
 
-    requestAnimationFrame(() => {
-      document.getElementById("user-profile")?.scrollIntoView({ block: "start" });
-    });
-  }, [location.hash]);
+    const timeoutIds: number[] = [];
+    const scheduleScroll = (delayMs: number) => {
+      const timeoutId = window.setTimeout(() => {
+        requestAnimationFrame(scrollToUserProfileHeading);
+      }, delayMs);
+      timeoutIds.push(timeoutId);
+    };
+
+    scheduleScroll(0);
+    scheduleScroll(80);
+    scheduleScroll(240);
+    scheduleScroll(500);
+
+    return () => {
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, [location.hash, location.key, expandedModeId, modeThresholdDrafts]);
 
   useEffect(() => {
     if (presets.length === 0) return;
@@ -174,6 +240,55 @@ export default function Settings() {
     });
   }, [customModes, defaultThresholdTemplate, presets]);
 
+  useEffect(() => {
+    const bedroomDraft = modeThresholdDrafts[BEDROOM_MODE_ID];
+    if (!bedroomDraft) return;
+
+    try {
+      if (localStorage.getItem(OFFICE_FROM_BEDROOM_MIGRATION_KEY) === "done") return;
+    } catch {
+      return;
+    }
+
+    setModeThresholdDrafts((prev) => {
+      const currentBedroomDraft = prev[BEDROOM_MODE_ID];
+      if (!currentBedroomDraft) return prev;
+      const copiedBedroomDraft = clonePointThresholds(currentBedroomDraft);
+
+      if (JSON.stringify(prev[UNICORN_MODE_ID]) === JSON.stringify(copiedBedroomDraft)) {
+        try {
+          localStorage.setItem(OFFICE_FROM_BEDROOM_MIGRATION_KEY, "done");
+        } catch {
+          // No-op: state already has the desired values.
+        }
+        return prev;
+      }
+
+      const next = {
+        ...prev,
+        [UNICORN_MODE_ID]: copiedBedroomDraft,
+      };
+
+      try {
+        const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
+        const stored = raw ? (JSON.parse(raw) as StoredModeThresholds) : {};
+        localStorage.setItem(
+          MODE_THRESHOLD_STORAGE_KEY,
+          JSON.stringify({
+            ...stored,
+            [UNICORN_MODE_ID]: next[UNICORN_MODE_ID],
+          })
+        );
+        localStorage.setItem(OFFICE_FROM_BEDROOM_MIGRATION_KEY, "done");
+        notifyModeThresholdsUpdated();
+      } catch {
+        // Keep the in-memory copy if localStorage is unavailable.
+      }
+
+      return next;
+    });
+  }, [modeThresholdDrafts]);
+
   // Friendly metric labels (translated)
   const metricLabels: Record<string, string> = {
     co2_ppm: `${t.sensor_co2} (ppm)`,
@@ -181,8 +296,8 @@ export default function Settings() {
     humidity_pct: `${t.sensor_humidity} (%)`,
     pressure_hpa: `${t.sensor_pressure} (hPa)`,
     light_lux: `${t.sensor_light} (lux)`,
-    noise_adc: `${t.sensor_noise} (ADC)`,
-    sound_level_adc: `${t.sensor_noise} (ADC)`,
+    noise_adc: `${t.sensor_noise} (dB)`,
+    sound_level_adc: `${t.sensor_noise} (dB)`,
   };
 
   const displayName = nickname.trim() || user?.name || (isCs ? "Neznámý uživatel" : "Unknown user");
@@ -210,17 +325,26 @@ export default function Settings() {
     return parts.map((p) => p.charAt(0).toUpperCase()).join("");
   }, [displayName]);
 
-  function saveProfile() {
+  async function saveProfile() {
     if (!nickname.trim()) {
       setProfileMessage(isCs ? "Vyplňte jméno." : "Fill in name.");
       return;
     }
 
-    setProfileMessage(
-      isCs
-        ? "Profil je připraven k uložení (demo režim)."
-        : "Profile changes are ready to save (demo flow)."
-    );
+    try {
+      const updatedUser = await apiPatch<User>("/auth/me", {
+        name: nickname.trim(),
+        avatar_url: avatarPreview,
+        timezone,
+      });
+      updateCurrentUser(updatedUser);
+      setNickname(updatedUser.name);
+      setTimezone(updatedUser.timezone ?? timezone);
+      setProfileMessage(isCs ? "Profil byl uložen." : "Profile saved.");
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setProfileMessage(isCs ? `Profil se nepodařilo uložit: ${detail}` : `Profile could not be saved: ${detail}`);
+    }
   }
 
   function disableCriticalAlertsWithConfirm() {
@@ -1015,7 +1139,13 @@ export default function Settings() {
           </div>
           <div className="form-group">
             <label className="form-label">{isCs ? "Časové pásmo" : "Time zone"}</label>
-            <input className="form-input" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+            <select className="form-select" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {timeZoneOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

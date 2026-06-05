@@ -177,7 +177,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [0, 5], moderate: [5, 50] },
-      noise_adc: { good: [0, 200], moderate: [200, 500] },
+      noise_adc: { good: [25, 25], moderate: [25, 45] },
     },
   },
   {
@@ -186,12 +186,12 @@ const fallbackPresets: EnvironmentPreset[] = [
     description: "Unicorn environment",
     icon: "briefcase",
     thresholds: {
-      co2_ppm: { good: [400, 800], moderate: [800, 1200] },
-      temperature_c: { good: [20, 24], moderate: [18, 26] },
+      co2_ppm: { good: [400, 600], moderate: [600, 1000] },
+      temperature_c: { good: [16, 20], moderate: [14, 24] },
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
-      light_lux: { good: [300, 750], moderate: [100, 1000] },
-      noise_adc: { good: [0, 400], moderate: [400, 700] },
+      light_lux: { good: [0, 5], moderate: [5, 50] },
+      noise_adc: { good: [25, 25], moderate: [25, 45] },
     },
   },
   {
@@ -205,7 +205,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 50], moderate: [20, 60] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [200, 1000], moderate: [50, 2000] },
-      noise_adc: { good: [0, 600], moderate: [600, 900] },
+      noise_adc: { good: [35, 35], moderate: [35, 85] },
     },
   },
   {
@@ -219,7 +219,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 70], moderate: [20, 85] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [200, 10000], moderate: [50, 20000] },
-      noise_adc: { good: [0, 500], moderate: [500, 800] },
+      noise_adc: { good: [30, 30], moderate: [30, 80] },
     },
   },
   {
@@ -233,7 +233,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [300, 750], moderate: [100, 1000] },
-      noise_adc: { good: [0, 400], moderate: [400, 700] },
+      noise_adc: { good: [30, 30], moderate: [30, 70] },
     },
   },
   {
@@ -247,7 +247,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 50], moderate: [20, 60] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [200, 1000], moderate: [50, 2000] },
-      noise_adc: { good: [0, 600], moderate: [600, 900] },
+      noise_adc: { good: [35, 35], moderate: [35, 85] },
     },
   },
   {
@@ -261,7 +261,7 @@ const fallbackPresets: EnvironmentPreset[] = [
       humidity_pct: { good: [50, 85], moderate: [40, 95] },
       pressure_hpa: { good: [980, 1040], moderate: [960, 1060] },
       light_lux: { good: [200, 10000], moderate: [50, 20000] },
-      noise_adc: { good: [0, 400], moderate: [400, 700] },
+      noise_adc: { good: [30, 30], moderate: [30, 75] },
     },
   },
 ];

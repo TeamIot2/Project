@@ -23,9 +23,19 @@ export type ModeThresholdPoints = Record<string, Record<string, ThresholdPoint>>
 
 export const MODE_THRESHOLD_STORAGE_KEY = "modeThresholdDrafts";
 export const MODE_THRESHOLD_UPDATED_EVENT = "team2app:mode-thresholds-updated";
+export const OFFICE_FROM_BEDROOM_MIGRATION_KEY = "modeThresholdDrafts:office-from-bedroom:2026-06-05";
+export const BEDROOM_MODE_ID = "sleep";
+export const UNICORN_MODE_ID = "office";
 
 const QUALITY_GOOD_SCORE = 70;
 const QUALITY_MODERATE_SCORE = 40;
+const DEFAULT_NOISE_DB_THRESHOLD_POINT: ThresholdPoint = {
+  ideal: 30,
+  lowerBad: null,
+  upperBad: 75,
+  notification: 70,
+  critical: 85,
+};
 
 export function roundThresholdValue(value: number): number {
   return Number.parseFloat(value.toFixed(2));
@@ -44,6 +54,22 @@ function isFiniteNumber(value: unknown): value is number {
 
 function normalizeOptionalThresholdValue(value: unknown): number | null {
   return isFiniteNumber(value) ? value : null;
+}
+
+function isNoiseMetricKey(metricKey: string): boolean {
+  return metricKey === "noise_adc" || metricKey === "sound_level_adc";
+}
+
+function looksLikeLegacyNoiseAdcThreshold(point: ThresholdPoint): boolean {
+  return [point.ideal, point.lowerBad, point.upperBad, point.notification, point.critical]
+    .some((value) => value !== null && Math.abs(value) > 140);
+}
+
+export function normalizeThresholdPointForMetric(metricKey: string, point: ThresholdPoint): ThresholdPoint {
+  if (isNoiseMetricKey(metricKey) && looksLikeLegacyNoiseAdcThreshold(point)) {
+    return cloneThresholdPoint(DEFAULT_NOISE_DB_THRESHOLD_POINT);
+  }
+  return cloneThresholdPoint(point);
 }
 
 function normalizeRange(range: [number, number]): [number, number] {
@@ -147,13 +173,41 @@ export function thresholdsToPoints(thresholds: Record<string, ThresholdRange>): 
   );
 }
 
+function isStoredModeThresholdMap(value: unknown): value is Record<string, StoredThresholdValue> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneStoredModeThresholds(thresholds: Record<string, StoredThresholdValue>): Record<string, StoredThresholdValue> {
+  return JSON.parse(JSON.stringify(thresholds)) as Record<string, StoredThresholdValue>;
+}
+
+function copyBedroomThresholdsToUnicornOnce(stored: StoredModeThresholds): StoredModeThresholds {
+  try {
+    if (localStorage.getItem(OFFICE_FROM_BEDROOM_MIGRATION_KEY) === "done") return stored;
+
+    const bedroomThresholds = stored[BEDROOM_MODE_ID];
+    if (!isStoredModeThresholdMap(bedroomThresholds)) return stored;
+
+    const nextStored: StoredModeThresholds = {
+      ...stored,
+      [UNICORN_MODE_ID]: cloneStoredModeThresholds(bedroomThresholds),
+    };
+
+    localStorage.setItem(MODE_THRESHOLD_STORAGE_KEY, JSON.stringify(nextStored));
+    localStorage.setItem(OFFICE_FROM_BEDROOM_MIGRATION_KEY, "done");
+    return nextStored;
+  } catch {
+    return stored;
+  }
+}
+
 export function readStoredModeThresholds(): StoredModeThresholds {
   try {
     const raw = localStorage.getItem(MODE_THRESHOLD_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed as StoredModeThresholds;
+    return copyBedroomThresholdsToUnicornOnce(parsed as StoredModeThresholds);
   } catch {
     return {};
   }
@@ -170,7 +224,7 @@ export function loadStoredModeThresholdPoints(): ModeThresholdPoints {
     for (const [metricKey, value] of Object.entries(modeThresholds)) {
       const normalizedPoint = storedThresholdToPoint(value);
       if (normalizedPoint) {
-        normalizedMode[metricKey] = normalizedPoint;
+        normalizedMode[metricKey] = normalizeThresholdPointForMetric(metricKey, normalizedPoint);
       }
     }
 

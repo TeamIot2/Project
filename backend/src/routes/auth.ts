@@ -10,18 +10,26 @@ import { randomBytes } from "crypto";
 import { Router, Request, Response } from "express";
 import { authenticateToken, generateToken, validateLogin } from "../middleware/auth";
 import { LoginRequest } from "../../../shared/types";
-import { upsertGoogleUserInDb } from "../services/database";
+import { updateUserProfileInDb, upsertGoogleUserInDb } from "../services/database";
 
 const router = Router();
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_SCOPES = ["openid", "email", "profile"];
+const MAX_PROFILE_NAME_LENGTH = 80;
+const MAX_AVATAR_DATA_URL_LENGTH = 8_000_000;
+const DEFAULT_TIME_ZONE = "Europe/Prague";
+const DATA_IMAGE_URL_PATTERN = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/;
 const LOCAL_FRONTEND_ORIGINS = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ]);
 const oauthStates = new Map<string, { expiresAt: number; frontendRedirectUri: string; returnTo: string }>();
+
+type AvatarValidationResult =
+  | { ok: true; value: string | null | undefined }
+  | { ok: false; error: string };
 
 interface GoogleTokenResponse {
   access_token?: string;
@@ -95,6 +103,59 @@ function cleanupExpiredOAuthStates(): void {
   const now = Date.now();
   for (const [state, details] of oauthStates.entries()) {
     if (details.expiresAt <= now) oauthStates.delete(state);
+  }
+}
+
+function normalizeProfileName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  if (!trimmed || trimmed.length > MAX_PROFILE_NAME_LENGTH) return null;
+  if (/[\u0000-\u001F\u007F]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function validateAvatarUrl(value: unknown): AvatarValidationResult {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (value === null) return { ok: true, value: null };
+  if (typeof value !== "string") {
+    return { ok: false, error: "Avatar URL must be a string or null" };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: true, value: null };
+
+  if (trimmed.startsWith("data:image/")) {
+    if (trimmed.length > MAX_AVATAR_DATA_URL_LENGTH) {
+      return { ok: false, error: "Avatar image is too large" };
+    }
+    if (!DATA_IMAGE_URL_PATTERN.test(trimmed)) {
+      return { ok: false, error: "Avatar image format is not supported" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return { ok: false, error: "Avatar URL protocol is not supported" };
+    }
+    if (trimmed.length > 2048) {
+      return { ok: false, error: "Avatar URL is too long" };
+    }
+    return { ok: true, value: trimmed };
+  } catch {
+    return { ok: false, error: "Avatar URL is invalid" };
+  }
+}
+
+function normalizeTimeZone(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return DEFAULT_TIME_ZONE;
+  const trimmed = value.trim();
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: trimmed }).format(new Date());
+    return trimmed;
+  } catch {
+    return DEFAULT_TIME_ZONE;
   }
 }
 
@@ -249,6 +310,42 @@ router.get("/google/callback", async (req: Request, res: Response) => {
 // GET /api/auth/me
 router.get("/me", authenticateToken, (req: Request, res: Response) => {
   res.json(req.user);
+});
+
+// PATCH /api/auth/me
+router.patch("/me", authenticateToken, (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const name = normalizeProfileName(body.name);
+  if (!name) {
+    res.status(400).json({ error: "Valid profile name is required" });
+    return;
+  }
+
+  const avatar = validateAvatarUrl(body.avatar_url);
+  if (!avatar.ok) {
+    res.status(400).json({ error: avatar.error });
+    return;
+  }
+  const timezone = normalizeTimeZone(body.timezone);
+
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const updatedUser = updateUserProfileInDb(userId, {
+    name,
+    timezone,
+    ...(avatar.value !== undefined ? { avatarUrl: avatar.value } : {}),
+  });
+
+  if (!updatedUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  res.json(updatedUser);
 });
 
 // POST /api/auth/logout

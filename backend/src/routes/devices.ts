@@ -4,6 +4,7 @@
 
 import { Router, Request, Response } from "express";
 import {
+  deleteDeviceFromDb,
   getDeviceMonitoringControl,
   renameDeviceInDb,
   setDeviceMonitoringInDb,
@@ -96,6 +97,25 @@ router.patch("/:id/monitoring", (req: Request, res: Response) => {
   }
 
   res.json(getAppDevices().find((device) => device.device_id === deviceId) ?? updatedDevice);
+});
+
+router.delete("/:id", (req: Request, res: Response) => {
+  const rawDeviceId = req.params.id;
+  const deviceId = Array.isArray(rawDeviceId) ? rawDeviceId[0] : rawDeviceId;
+
+  if (typeof deviceId !== "string" || deviceId.trim().length === 0) {
+    res.status(400).json({ error: "Device id is required" });
+    return;
+  }
+
+  const existingDevice = getAppDevices().find((device) => device.device_id === deviceId);
+  if (!existingDevice) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+
+  deleteDeviceFromDb(deviceId);
+  res.json({ ok: true, device_id: deviceId });
 });
 
 export default router;

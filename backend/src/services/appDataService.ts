@@ -201,6 +201,15 @@ function emptyDeviceUptime(deviceId: string, latestAt: string | null = null): De
   };
 }
 
+function resolveLiveStartedAtMs(
+  monitoringStartedMs: number | null,
+  measurementStartedMs: number | null
+): number | null {
+  const starts = [monitoringStartedMs, measurementStartedMs].filter((time): time is number => time !== null);
+  if (starts.length === 0) return null;
+  return Math.max(...starts);
+}
+
 function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeasurementUptime {
   const dataDeviceId = resolveReadingDeviceId(deviceId) ?? deviceId;
   const appDevices = getAppDevices();
@@ -227,15 +236,16 @@ function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeas
   const latestReading = readings.find((reading) =>
     monitoringStartedMs === null || reading.time >= monitoringStartedMs
   );
+  const liveStartedAtMs = resolveLiveStartedAtMs(monitoringStartedMs, measurementStartedMs);
 
   if (!latestReading) {
-    if (monitoringStartedMs !== null && nowMs - monitoringStartedMs <= MEASUREMENT_LIVE_MAX_AGE_SECONDS * 1000) {
+    if (device?.status === "online" && liveStartedAtMs !== null) {
       return {
         device_id: deviceId,
         measuring: true,
-        started_at: isoOrNull(monitoringStartedMs),
+        started_at: isoOrNull(liveStartedAtMs),
         latest_at: null,
-        uptime_seconds: Math.max(0, Math.floor((nowMs - monitoringStartedMs) / 1000)),
+        uptime_seconds: Math.max(0, Math.floor((nowMs - liveStartedAtMs) / 1000)),
         sample_count: 0,
       };
     }
@@ -244,6 +254,16 @@ function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeas
 
   const liveMaxAgeMs = MEASUREMENT_LIVE_MAX_AGE_SECONDS * 1000;
   if (nowMs - latestReading.time > liveMaxAgeMs) {
+    if (device?.status === "online" && liveStartedAtMs !== null) {
+      return {
+        device_id: deviceId,
+        measuring: true,
+        started_at: isoOrNull(liveStartedAtMs),
+        latest_at: latestReading.timestamp,
+        uptime_seconds: Math.max(0, Math.floor((nowMs - liveStartedAtMs) / 1000)),
+        sample_count: 0,
+      };
+    }
     return emptyDeviceUptime(deviceId, latestReading.timestamp);
   }
 

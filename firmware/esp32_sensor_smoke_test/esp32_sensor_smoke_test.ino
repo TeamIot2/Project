@@ -376,7 +376,7 @@ void printJsonLine(
   Serial.printf("\"sound_peak_adc\":%u,", soundReading.peak);
   Serial.printf("\"sound_rms_adc\":%u,", soundReading.rms);
   Serial.printf("\"sound_event\":%s,", soundReading.eventDetected ? "true" : "false");
-  Serial.print("\"battery_v\":0.0");
+  Serial.print("\"battery_v\":null");
   Serial.println('}');
 }
 

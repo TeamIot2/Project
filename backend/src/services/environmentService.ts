@@ -19,7 +19,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [0, 5], moderate: [5, 30] },
-      sound_level_adc: { good: [0, 1800], moderate: [1800, 2100] },
+      sound_level_adc: { good: [25, 25], moderate: [25, 45] },
     },
   },
   {
@@ -28,12 +28,12 @@ const PRESETS: EnvironmentPreset[] = [
     description: "Unicorn environment",
     icon: "briefcase",
     thresholds: {
-      co2_ppm: { good: [0, 800], moderate: [800, 1200] },
-      temperature_c: { good: [20, 24], moderate: [18, 26] },
+      co2_ppm: { good: [0, 600], moderate: [600, 1000] },
+      temperature_c: { good: [16, 19], moderate: [14, 22] },
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
-      light_lux: { good: [300, 500], moderate: [150, 700] },
-      sound_level_adc: { good: [0, 2100], moderate: [2100, 2400] },
+      light_lux: { good: [0, 5], moderate: [5, 30] },
+      sound_level_adc: { good: [25, 25], moderate: [25, 45] },
     },
   },
   {
@@ -47,7 +47,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 60], moderate: [20, 70] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [100, 500], moderate: [50, 700] },
-      sound_level_adc: { good: [0, 2400], moderate: [2400, 2800] },
+      sound_level_adc: { good: [35, 35], moderate: [35, 85] },
     },
   },
   {
@@ -61,7 +61,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 70], moderate: [20, 85] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [200, 10000], moderate: [50, 20000] },
-      sound_level_adc: { good: [0, 2200], moderate: [2200, 2600] },
+      sound_level_adc: { good: [30, 30], moderate: [30, 80] },
     },
   },
   {
@@ -75,7 +75,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [40, 60], moderate: [30, 70] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [300, 500], moderate: [150, 700] },
-      sound_level_adc: { good: [0, 2100], moderate: [2100, 2400] },
+      sound_level_adc: { good: [30, 30], moderate: [30, 70] },
     },
   },
   {
@@ -89,7 +89,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [30, 60], moderate: [20, 70] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [100, 500], moderate: [50, 700] },
-      sound_level_adc: { good: [0, 2400], moderate: [2400, 2800] },
+      sound_level_adc: { good: [35, 35], moderate: [35, 85] },
     },
   },
   {
@@ -103,7 +103,7 @@ const PRESETS: EnvironmentPreset[] = [
       humidity_pct: { good: [50, 85], moderate: [40, 95] },
       pressure_hpa: { good: [980, 1050], moderate: [960, 1060] },
       light_lux: { good: [200, 10000], moderate: [50, 20000] },
-      sound_level_adc: { good: [0, 2000], moderate: [2000, 2400] },
+      sound_level_adc: { good: [30, 30], moderate: [30, 75] },
     },
   },
 ];
