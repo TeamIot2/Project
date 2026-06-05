@@ -49,7 +49,7 @@
             "source": "uart"
         }
     ],
-    "seq": 15148,
+    "seq": 15166,
     "monitoringEnabled": true,
     "monitoringCommandSeq": 0
 }
