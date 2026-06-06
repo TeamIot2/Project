@@ -9,6 +9,10 @@ const MAX_DEDUPE_KEY_LENGTH = 180;
 
 router.use(authenticateToken);
 
+function getNotificationRecipient(userEmail: string): string {
+  return process.env.EMAIL_NOTIFICATION_RECIPIENT?.trim() || userEmail;
+}
+
 function normalizeShortText(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
 
@@ -39,7 +43,7 @@ router.post("/email", async (req: Request, res: Response) => {
   try {
     const result = await sendTeam2NotificationEmail({
       userId: user.id,
-      to: user.email,
+      to: getNotificationRecipient(user.email),
       message,
       dedupeKey,
     });

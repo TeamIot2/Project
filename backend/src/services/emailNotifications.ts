@@ -64,10 +64,15 @@ function getSmtpConfig(): SmtpConfig | null {
 }
 
 function createTransport(config: SmtpConfig) {
+  const timeoutMs = Math.max(5_000, readNumberEnv("SMTP_TIMEOUT_MS", 15_000));
+
   return nodemailer.createTransport({
     host: config.host,
     port: config.port,
     secure: config.secure,
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
     ...(config.user && config.pass
       ? {
           auth: {

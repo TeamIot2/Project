@@ -10227,6 +10227,28 @@ html[data-style="16"] .env-card.active .env-card-label {
   color: var(--text-secondary) !important;
 }
 
+.settings-notification-test-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+
+.settings-notification-test-btn {
+  min-height: 34px;
+  font-weight: 700;
+}
+
+.settings-notification-test-message {
+  max-width: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
 .settings-critical-alert-row {
   align-items: center;
   gap: 0.7rem;
@@ -10291,6 +10313,16 @@ html[data-style="16"] .env-card.active .env-card-label {
 
   .settings-notification-options {
     grid-template-columns: 1fr;
+  }
+
+  .settings-notification-test-row {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .settings-notification-test-btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .settings-critical-alert-row {

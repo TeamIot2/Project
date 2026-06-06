@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useLocation } from "react-router-dom";
-import { apiPatch } from "../api";
+import { apiPatch, apiPost } from "../api";
 import { useAuth } from "../contexts/AuthContext";
 import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useI18n } from "../contexts/I18nContext";
@@ -170,6 +170,8 @@ export default function Settings() {
   const [showDeleteProfileModal, setShowDeleteProfileModal] = useState(false);
   const [deleteEnvironmentTargetId, setDeleteEnvironmentTargetId] = useState<string | null>(null);
   const [avatarRemoving, setAvatarRemoving] = useState(false);
+  const [notificationTestPending, setNotificationTestPending] = useState(false);
+  const [notificationTestMessage, setNotificationTestMessage] = useState<string | null>(null);
   const timeZoneOptions = useMemo(() => getTimeZoneOptions(locale, timezone), [locale, timezone]);
 
   const defaultThresholdTemplate = useMemo(() => {
@@ -347,6 +349,41 @@ export default function Settings() {
 
     setEmailNotificationsEnabled(!emailNotificationsEnabled);
   };
+
+  async function sendNotificationTestEmail() {
+    setNotificationTestPending(true);
+    setNotificationTestMessage(null);
+
+    try {
+      const result = await apiPost<{ sent: boolean; skipped?: string; configured: boolean }>("/notifications/email", {
+        message: isCs
+          ? "Testovací notifikace Team2App z nastavení aplikace."
+          : "Team2App test notification from application settings.",
+        dedupeKey: `settings-test:${Date.now()}`,
+      });
+
+      if (result.sent) {
+        setNotificationTestMessage(isCs ? "Testovací email byl odeslán." : "Test email was sent.");
+      } else if (result.skipped === "cooldown") {
+        setNotificationTestMessage(
+          isCs
+            ? "Testovací email byl přeskočen kvůli ochrannému limitu. Zkuste to později."
+            : "Test email was skipped by cooldown. Try again later."
+        );
+      } else {
+        setNotificationTestMessage(isCs ? "Emailová služba je nastavená, ale email nebyl odeslán." : "Email service is configured, but no email was sent.");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setNotificationTestMessage(
+        isCs
+          ? `Testovací email se nepodařilo odeslat: ${message}`
+          : `Failed to send test email: ${message}`
+      );
+    } finally {
+      setNotificationTestPending(false);
+    }
+  }
 
   const initials = useMemo(() => {
     const parts = displayName.split(" ").filter(Boolean).slice(0, 2);
@@ -1354,6 +1391,23 @@ export default function Settings() {
                     : (isCs ? "Výstrahy na kritické hodnoty jsou vypnuté." : "Critical-value alerts are disabled.")}
                 </span>
               </button>
+            </div>
+            <div className="settings-notification-test-row">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline settings-notification-test-btn"
+                onClick={() => void sendNotificationTestEmail()}
+                disabled={notificationTestPending}
+              >
+                {notificationTestPending
+                  ? (isCs ? "Odesílám..." : "Sending...")
+                  : (isCs ? "Odeslat testovací email" : "Send test email")}
+              </button>
+              {notificationTestMessage && (
+                <span className="settings-notification-test-message" role="status">
+                  {notificationTestMessage}
+                </span>
+              )}
             </div>
           </div>
         </div>
