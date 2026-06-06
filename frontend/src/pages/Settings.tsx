@@ -157,7 +157,7 @@ export default function Settings() {
     modeMetaOverrides, setModeMetaOverrides,
     newModeName, setNewModeName,
     expandedModeId, setExpandedModeId,
-    avatarPreview, setAvatarFromUser, handleAvatarChange, removeAvatar, avatarInputRef,
+    avatarPreview, setAvatarFromUser, handleAvatarChange, avatarInputRef,
     toggleFavoriteMode, isFavorite,
   } = useSettingsState();
 
@@ -169,6 +169,7 @@ export default function Settings() {
   const [showDisableCriticalAlertsModal, setShowDisableCriticalAlertsModal] = useState(false);
   const [showDeleteProfileModal, setShowDeleteProfileModal] = useState(false);
   const [deleteEnvironmentTargetId, setDeleteEnvironmentTargetId] = useState<string | null>(null);
+  const [avatarRemoving, setAvatarRemoving] = useState(false);
   const timeZoneOptions = useMemo(() => getTimeZoneOptions(locale, timezone), [locale, timezone]);
 
   const defaultThresholdTemplate = useMemo(() => {
@@ -372,6 +373,33 @@ export default function Settings() {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setProfileMessage(isCs ? `Profil se nepodařilo uložit: ${detail}` : `Profile could not be saved: ${detail}`);
+    }
+  }
+
+  async function removeProfileAvatar() {
+    const name = nickname.trim() || user?.name?.trim();
+    if (!name) {
+      setProfileMessage(isCs ? "Vyplňte jméno." : "Fill in name.");
+      return;
+    }
+
+    setAvatarRemoving(true);
+    try {
+      const updatedUser = await apiPatch<User>("/auth/me", {
+        name,
+        avatar_url: null,
+        timezone,
+      });
+      updateCurrentUser(updatedUser);
+      setAvatarFromUser(updatedUser.avatar_url ?? null);
+      setNickname(updatedUser.name);
+      setTimezone(updatedUser.timezone ?? timezone);
+      setProfileMessage(isCs ? "Fotka byla odebrána." : "Profile photo removed.");
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      setProfileMessage(isCs ? `Fotku se nepodařilo odebrat: ${detail}` : `Profile photo could not be removed: ${detail}`);
+    } finally {
+      setAvatarRemoving(false);
     }
   }
 
@@ -1164,12 +1192,16 @@ export default function Settings() {
               onChange={handleAvatarChange}
               className="settings-avatar-input"
             />
-            <button className="btn btn-outline btn-sm" onClick={() => avatarInputRef.current?.click()}>
+            <button className="btn btn-outline btn-sm settings-avatar-action-btn" onClick={() => avatarInputRef.current?.click()}>
               {isCs ? "Změnit fotku" : "Change photo"}
             </button>
             {avatarPreview && (
-              <button className="btn btn-ghost btn-sm" onClick={removeAvatar}>
-                {isCs ? "Odebrat" : "Remove"}
+              <button
+                className="btn btn-sm settings-avatar-action-btn settings-avatar-remove-btn"
+                onClick={() => void removeProfileAvatar()}
+                disabled={avatarRemoving}
+              >
+                {avatarRemoving ? (isCs ? "Odebírám..." : "Removing...") : (isCs ? "Odebrat" : "Remove")}
               </button>
             )}
           </div>

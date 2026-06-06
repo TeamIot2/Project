@@ -53,7 +53,6 @@ interface SettingsState {
   avatarPreview: string | null;
   setAvatarFromUser: (avatarUrl: string | null | undefined) => void;
   handleAvatarChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  removeAvatar: () => void;
   avatarInputRef: React.RefObject<HTMLInputElement>;
 
   favoriteModes: string[];
@@ -315,12 +314,6 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
     reader.readAsDataURL(file);
   }
 
-  function removeAvatar() {
-    setAvatarPreview(null);
-    if (avatarInputRef.current) avatarInputRef.current.value = "";
-    setProfileMessage("Profile image removed.");
-  }
-
   return (
     <SettingsStateContext.Provider
       value={{
@@ -335,7 +328,7 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
         modeMetaOverrides, setModeMetaOverrides,
         newModeName, setNewModeName,
         expandedModeId, setExpandedModeId,
-        avatarPreview, setAvatarFromUser, handleAvatarChange, removeAvatar, avatarInputRef,
+        avatarPreview, setAvatarFromUser, handleAvatarChange, avatarInputRef,
         favoriteModes, toggleFavoriteMode, isFavorite, canAddFavorite,
       }}
     >
