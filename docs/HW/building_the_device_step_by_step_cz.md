@@ -427,7 +427,6 @@ Pokud neplati cokoli z toho, nepredelavej dalsi cast a oprav nejdriv posledni ro
 
 Zatim neres:
 
-- `Polar H10`
 - finalni krabicku
 - produkcni firmware
 - OTA update

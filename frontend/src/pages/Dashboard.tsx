@@ -17,7 +17,6 @@ import { useVisualStyle } from "../contexts/StyleContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
-import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
 import { apiGet, apiPatch, apiPost } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
@@ -37,8 +36,6 @@ import {
   Volume2,
   Activity,
   Clock,
-  Heart,
-  Bluetooth,
   ChevronDown,
   Moon,
   Briefcase,
@@ -66,7 +63,6 @@ const iconMap: Record<string, typeof Wind> = {
   droplets: Droplets,
   sun: Sun,
   volume: Volume2,
-  heart: Heart,
   co2molecule: Co2Molecule,
   gauge: Activity,
 };
@@ -397,7 +393,6 @@ export default function Dashboard() {
   const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
     withMockModeSuffix(modeId, modeMetaOverrides[modeId]?.name ?? fallback);
   const environmentTabLabel = isCs ? "Prostředí" : "Environment";
-  const hr = useHeartRate();
 
   const {
     isMeasuring, setIsMeasuring,
@@ -1726,102 +1721,6 @@ export default function Dashboard() {
         })}
       </section>
 
-      {/* Heart Rate section */}
-      <section className="hr-section">
-        <div className="hr-header">
-          <h3 className="hr-title">
-            <Heart size={18} />
-            <span>{t.sensor_heart_rate}</span>
-          </h3>
-          {hr.isSupported && (
-            <button
-              className={`btn btn-sm ${hr.connected ? "btn-danger" : "btn-primary"}`}
-              onClick={hr.connected ? hr.disconnect : hr.connect}
-              disabled={hr.connecting}
-            >
-              <Bluetooth size={14} />
-              {hr.connecting ? t.hr_connecting : hr.connected ? t.hr_disconnect : t.hr_connect}
-            </button>
-          )}
-          {!hr.isSupported && (
-            <span className="text-muted" style={{ fontSize: "0.75rem" }}>{t.hr_not_supported}</span>
-          )}
-        </div>
-
-        {hr.connected && hr.bpm !== null ? (
-          <div className="hr-cards">
-            <article className="sensor-card" style={{ borderLeft: "4px solid #E11D48" }}>
-              <div className="sensor-card-header">
-                <div className="sensor-icon" style={{ color: "#E11D48" }}>
-                  <Heart size={20} />
-                </div>
-                <span className="quality-badge" data-quality={hr.bpm < 100 ? "good" : hr.bpm < 150 ? "moderate" : "poor"}>
-                  <span className="quality-dot" />
-                  {hr.bpm < 100 ? t.quality_good : hr.bpm < 150 ? t.quality_moderate : t.quality_poor}
-                </span>
-              </div>
-              <div className="sensor-card-body">
-                <span className="sensor-label">{t.sensor_heart_rate}</span>
-                <div className="sensor-value">
-                  <span className="value-number">{hr.bpm}</span>
-                  <span className="value-unit">BPM</span>
-                </div>
-              </div>
-            </article>
-
-            <article className="sensor-card" style={{ borderLeft: "4px solid #EC4899" }}>
-              <div className="sensor-card-header">
-                <div className="sensor-icon" style={{ color: "#EC4899" }}>
-                  <Activity size={20} />
-                </div>
-                <span className="quality-badge" data-quality={hr.rmssd !== null && hr.rmssd > 40 ? "good" : hr.rmssd !== null && hr.rmssd > 20 ? "moderate" : "poor"}>
-                  <span className="quality-dot" />
-                  {hr.rmssd !== null && hr.rmssd > 40 ? t.quality_good : hr.rmssd !== null && hr.rmssd > 20 ? t.quality_moderate : t.quality_poor}
-                </span>
-              </div>
-              <div className="sensor-card-body">
-                <span className="sensor-label">{t.sensor_hrv} (RMSSD)</span>
-                <div className="sensor-value">
-                  <span className="value-number">{hr.rmssd ?? "--"}</span>
-                  <span className="value-unit">ms</span>
-                </div>
-              </div>
-            </article>
-          </div>
-        ) : hr.connected ? (
-          <p className="text-muted" style={{ fontSize: "0.8125rem" }}>{t.hr_connecting}</p>
-        ) : null}
-
-        {hr.isSupported && (!hr.connected || hr.bpm === null) && (
-          <div className="hr-mobile-hrv-card">
-            <article className="sensor-card" style={{ borderLeft: "4px solid #EC4899" }}>
-              <div className="sensor-card-header">
-                <div className="sensor-icon" style={{ color: "#EC4899" }}>
-                  <Activity size={20} />
-                </div>
-              </div>
-              <div className="sensor-card-body">
-                <span className="sensor-label">{t.sensor_hrv} (RMSSD)</span>
-                <div className="sensor-value">
-                  <span className="value-number">{hr.connected && hr.rmssd !== null ? hr.rmssd : "--"}</span>
-                  <span className="value-unit">ms</span>
-                </div>
-              </div>
-            </article>
-          </div>
-        )}
-
-        {hr.error && (
-          <p className="text-muted" style={{ fontSize: "0.75rem", color: "var(--poor)", marginTop: "0.5rem" }}>{hr.error}</p>
-        )}
-
-        {hr.deviceName && hr.connected && (
-          <p className="text-muted" style={{ fontSize: "0.6875rem", marginTop: "0.25rem" }}>
-            Polar: {hr.deviceName}
-          </p>
-        )}
-      </section>
-
       {/* Monitoring stats panel (mobile) */}
       <section className="monitoring-stats-panel">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2092,38 +1991,6 @@ export default function Dashboard() {
                   })}
                 </div>
 
-                {/* Heart Rate section â€” desktop */}
-                <div className="figma-hr-row">
-                  <div className="figma-sensor-card" style={{ borderTopColor: "#E11D48" }}>
-                    <div className="figma-sensor-card-content">
-                      <div className="figma-sensor-icon" style={{ color: "#E11D48" }}><Heart size={18} /></div>
-                      <span className="figma-sensor-label">{t.sensor_heart_rate}</span>
-                      {hr.connected && hr.bpm !== null ? (
-                        <span className="figma-sensor-value">{hr.bpm} <small>BPM</small></span>
-                      ) : (
-                        <button
-                          className="btn btn-sm btn-primary figma-hr-connect-btn"
-                          onClick={hr.isSupported ? hr.connect : undefined}
-                          disabled={hr.connecting || !hr.isSupported}
-                        >
-                          <Bluetooth size={14} />
-                          {hr.connecting ? t.hr_connecting : t.hr_connect}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="figma-sensor-card" style={{ borderTopColor: "#EC4899" }}>
-                    <div className="figma-sensor-card-content">
-                      <div className="figma-sensor-icon" style={{ color: "#EC4899" }}><Activity size={18} /></div>
-                      <span className="figma-sensor-label">{t.sensor_hrv}</span>
-                      {hr.connected && hr.rmssd !== null ? (
-                        <span className="figma-sensor-value">{hr.rmssd} <small>ms</small></span>
-                      ) : (
-                        <span className="figma-sensor-value">-- <small>ms</small></span>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </>
             )}
 

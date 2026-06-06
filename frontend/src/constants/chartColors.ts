@@ -16,9 +16,6 @@ export const METRIC_COLORS: Record<string, string> = {
   pressure_hpa: "#8B5CF6",
   light_lux: "#F59E0B",
   noise_adc: "#EF4444",
-  // Wearable-only metrics (not on the IoT node)
-  heart_rate_bpm: "#E11D48",
-  hrv_rmssd_ms: "#EC4899",
 };
 
 /**
@@ -65,8 +62,6 @@ export const SENSOR_LABEL_KEYS: Record<string, keyof Translations> = {
   pressure_hpa: "sensor_pressure",
   light_lux: "sensor_light",
   noise_adc: "sensor_noise",
-  heart_rate_bpm: "sensor_heart_rate",
-  hrv_rmssd_ms: "sensor_hrv",
 };
 
 /**

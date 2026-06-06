@@ -19,8 +19,6 @@ export interface EnvironmentalReading {
   gateway_id?: string;
   battery_v?: number;
   source?: string;
-  heart_rate_bpm?: number;
-  hrv_rmssd_ms?: number;
 }
 
 export interface DeviceInfo {

@@ -17,29 +17,9 @@ export interface EnvironmentalReading extends SensorReading {
   sound_peak_adc: number;
   sound_rms_adc: number;
   sound_event: boolean;
-  heart_rate_bpm?: number;
-  hrv_rmssd_ms?: number;
   gateway_id?: string;
   battery_v?: number;
   source?: string;
-}
-
-// ============================================================
-// Heart Rate Monitor Types (Polar H10 via Web Bluetooth)
-// ============================================================
-
-export interface HeartRateData {
-  bpm: number;
-  rr_intervals_ms: number[];
-  contact_detected: boolean;
-  energy_expended_kj?: number;
-  timestamp: string;
-}
-
-export interface HrvData {
-  rmssd_ms: number;  // Root Mean Square of Successive Differences
-  sdnn_ms: number;   // Standard Deviation of NN intervals
-  timestamp: string;
 }
 
 export interface GatewayIngestPayload {

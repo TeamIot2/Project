@@ -111,14 +111,6 @@ export interface Translations {
   login_error: string;
   instant_login: string;
 
-  // Heart Rate
-  sensor_heart_rate: string;
-  sensor_hrv: string;
-  hr_connect: string;
-  hr_disconnect: string;
-  hr_connecting: string;
-  hr_not_supported: string;
-
   // Measuring
   measuring_active: string;
   measuring_inactive: string;
@@ -266,13 +258,6 @@ const cs: Translations = {
   login_error: "Nesprávný email nebo heslo",
   instant_login: "Přihlásit okamžitě",
 
-  sensor_heart_rate: "Tep",
-  sensor_hrv: "Variabilita tepu",
-  hr_connect: "Připojit HR monitor",
-  hr_disconnect: "Odpojit",
-  hr_connecting: "Připojování...",
-  hr_not_supported: "Web Bluetooth není podporován v tomto prohlížeči",
-
   measuring_active: "Měření probíhá",
   measuring_inactive: "Neměří se",
   measuring_start: "Spustit",
@@ -413,13 +398,6 @@ const en: Translations = {
   env_monitoring: "Environmental Monitoring",
   login_error: "Invalid email or password",
   instant_login: "Instant Login",
-
-  sensor_heart_rate: "Heart Rate",
-  sensor_hrv: "Heart Rate Variability",
-  hr_connect: "Connect HR monitor",
-  hr_disconnect: "Disconnect",
-  hr_connecting: "Connecting...",
-  hr_not_supported: "Web Bluetooth is not supported in this browser",
 
   measuring_active: "Monitoring",
   measuring_inactive: "Paused",

@@ -1,12 +1,11 @@
-// Devices page: expandable device list with sensor details
-
+﻿
 import { useState, useEffect, type MouseEvent } from "react";
 import { apiDelete, apiGet, apiPatch } from "../api";
 import { useI18n } from "../contexts/I18nContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
 import { REAL_BEDROOM_DEVICE_ID, REAL_OFFICE_DEVICE_ID, useDashboard } from "../contexts/DashboardContext";
 import type { DeviceInfo, EnvironmentalReading, EnvironmentMode } from "../types";
-import { Cpu, Battery, Clock, ChevronDown, Co2Molecule, Thermometer, Droplets, Activity, Sun, Volume2, LogOut, Search, Wifi, Bluetooth, X } from "../components/Icons";
+import { Cpu, Battery, Clock, ChevronDown, Co2Molecule, Thermometer, Droplets, Activity, Sun, Volume2, LogOut, Search, Wifi, X } from "../components/Icons";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { timeAgo } from "../utils/dateTime";
 import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
@@ -49,7 +48,7 @@ const sensorIconMap: Record<string, typeof Co2Molecule> = {
   sound_level_adc: Volume2,
 };
 
-type DiscoveryTransport = "usb" | "ble" | "wifi";
+type DiscoveryTransport = "usb" | "wifi";
 type DiscoveryBusyTarget = DiscoveryTransport | "known";
 
 interface DiscoveryCandidate {
@@ -76,19 +75,8 @@ interface SerialApiLike {
   requestPort: () => Promise<SerialPortLike>;
 }
 
-interface BluetoothDeviceLike {
-  id?: string;
-  name?: string;
-}
-
-interface BluetoothApiLike {
-  getDevices?: () => Promise<BluetoothDeviceLike[]>;
-  requestDevice: (options: { acceptAllDevices: boolean }) => Promise<BluetoothDeviceLike>;
-}
-
 type NavigatorWithDeviceDiscovery = Navigator & {
   serial?: SerialApiLike;
-  bluetooth?: BluetoothApiLike;
 };
 
 function mergeDiscoveryCandidates(
@@ -255,15 +243,15 @@ function DeviceRow({
       {expanded && (
         <div className="device-row-body">
           <div className="device-tech-desc">
-            <b>LOLIN32 ESP32</b> — main board, 240 MHz, WiFi/Bluetooth
-            {" · "}
-            <b>MH-Z19B</b> — CO2 sensor, 0–5000 ppm
-            {" · "}
-            <b>BME280</b> — temperature, humidity &amp; pressure sensor
-            {" · "}
-            <b>BH1750</b> — ambient light sensor, 1–65535 lux
-            {" · "}
-            <b>MAX9814</b> — microphone module for noise detection
+            <b>LOLIN32 ESP32</b> â€” main board, 240 MHz, WiFi/Bluetooth
+            {" Â· "}
+            <b>MH-Z19B</b> â€” CO2 sensor, 0â€“5000 ppm
+            {" Â· "}
+            <b>BME280</b> â€” temperature, humidity &amp; pressure sensor
+            {" Â· "}
+            <b>BH1750</b> â€” ambient light sensor, 1â€“65535 lux
+            {" Â· "}
+            <b>MAX9814</b> â€” microphone module for noise detection
           </div>
 
           <div className="device-meta-group device-meta-group--left">
@@ -301,7 +289,6 @@ function DeviceRow({
               type="button"
               className="btn btn-sm btn-outline device-rename-confirm"
               onClick={() => void handleConfirmRename()}
-              disabled={renaming || !renameValue.trim() || renameValue.trim() === deviceDisplayName}
             >
               Confirm
             </button>
@@ -309,7 +296,7 @@ function DeviceRow({
 
           <div className="device-mode-row">
             <span className="device-mode-label">
-              {isCs ? "Toto zařízení poskytuje data pro tyto režimy:" : "This device contributes to these modes:"}
+              {isCs ? "Toto zaĹ™Ă­zenĂ­ poskytuje data pro tyto reĹľimy:" : "This device contributes to these modes:"}
             </span>
             <div className="device-mode-chips">
               {ALL_ENV_MODES.map((envMode) => {
@@ -317,15 +304,12 @@ function DeviceRow({
                 const lockedDeviceId = LOCKED_MODE_DEVICE_IDS[envMode];
                 const isLockedRealChip = lockedDeviceId === device.device_id;
                 const isUnavailableRealChip = !!lockedDeviceId && lockedDeviceId !== device.device_id;
-                const isDisabled = isLockedRealChip || isUnavailableRealChip;
 
                 return (
                   <button
                     key={envMode}
                     type="button"
-                    className={`device-mode-chip ${isActive ? "active" : ""} ${isDisabled ? "locked" : ""}`}
                     onClick={() => toggleModeAssignment(envMode)}
-                    disabled={isDisabled}
                     aria-pressed={isActive}
                     title={
                       isLockedRealChip
@@ -348,7 +332,7 @@ function DeviceRow({
             </div>
           </div>
 
-          <h4 className="device-measures-heading">{isCs ? "Toto zařízení měří:" : "This device measures:"}</h4>
+          <h4 className="device-measures-heading">{isCs ? "Toto zaĹ™Ă­zenĂ­ mÄ›Ĺ™Ă­:" : "This device measures:"}</h4>
           <div className="device-sensors-grid">
             {sensorFields.map((sf) => {
               const SensorIcon = sensorIconMap[sf.key] ?? Co2Molecule;
@@ -409,56 +393,51 @@ export default function Devices() {
   const [disconnectMessage, setDisconnectMessage] = useState<string | null>(null);
 
   const discoveryText = {
-    searchButton: isCs ? "Hledat zařízení" : "Search for devices",
-    title: isCs ? "Hledat zařízení" : "Search for devices",
+    searchButton: isCs ? "Hledat zaĹ™Ă­zenĂ­" : "Search for devices",
+    title: isCs ? "Hledat zaĹ™Ă­zenĂ­" : "Search for devices",
     subtitle: isCs
-      ? "Najdi známá zařízení, vyber USB/Bluetooth zařízení přes bezpečný dialog prohlížeče nebo přidej Wi-Fi gateway ručně."
-      : "Find known devices, choose a USB/Bluetooth device through the browser permission dialog, or add a Wi-Fi gateway manually.",
+      ? "Najdi znĂˇmĂˇ zaĹ™Ă­zenĂ­, vyber USB zaĹ™Ă­zenĂ­ pĹ™es bezpeÄŤnĂ˝ dialog prohlĂ­ĹľeÄŤe nebo pĹ™idej Wi-Fi gateway ruÄŤnÄ›."
+      : "Find known devices, choose a USB device through the browser permission dialog, or add a Wi-Fi gateway manually.",
     usbTitle: "USB Serial",
     usbDescription: isCs
-      ? "Pro ESP32 připojené k laptopu. Prohlížeč umí ukázat jen porty, ke kterým mu uživatel dá výslovný souhlas."
+      ? "Pro ESP32 pĹ™ipojenĂ© k laptopu. ProhlĂ­ĹľeÄŤ umĂ­ ukĂˇzat jen porty, ke kterĂ˝m mu uĹľivatel dĂˇ vĂ˝slovnĂ˝ souhlas."
       : "For an ESP32 connected to the laptop. The browser can show only ports explicitly approved by the user.",
     usbAction: isCs ? "Vybrat USB port" : "Choose USB port",
-    bleTitle: "Bluetooth LE",
-    bleDescription: isCs
-      ? "Použitelné pro budoucí firmware, který bude inzerovat BLE službu. Funguje jen po ručním výběru zařízení."
-      : "For future firmware advertising a BLE service. It works only after manual device selection.",
-    bleAction: isCs ? "Vybrat Bluetooth" : "Choose Bluetooth",
     wifiTitle: "Wi-Fi / Gateway",
     wifiDescription: isCs
-      ? "Browser neumí bezpečně skenovat celou lokální síť. Zadej adresu gateway nebo použij zařízení nalezené backendem."
+      ? "Browser neumĂ­ bezpeÄŤnÄ› skenovat celou lokĂˇlnĂ­ sĂ­ĹĄ. Zadej adresu gateway nebo pouĹľij zaĹ™Ă­zenĂ­ nalezenĂ© backendem."
       : "The browser cannot safely scan the whole local network. Enter a gateway address or use a backend-known device.",
-    manualGateway: isCs ? "Ruční Wi-Fi gateway" : "Manual Wi-Fi gateway",
+    manualGateway: isCs ? "RuÄŤnĂ­ Wi-Fi gateway" : "Manual Wi-Fi gateway",
     gatewayUrl: isCs ? "Gateway URL nebo IP" : "Gateway URL or IP",
-    gatewayName: isCs ? "Název v aplikaci" : "Name in app",
-    addGateway: isCs ? "Přidat gateway" : "Add gateway",
-    results: isCs ? "Nalezená a známá zařízení" : "Found and known devices",
+    gatewayName: isCs ? "NĂˇzev v aplikaci" : "Name in app",
+    addGateway: isCs ? "PĹ™idat gateway" : "Add gateway",
+    results: isCs ? "NalezenĂˇ a znĂˇmĂˇ zaĹ™Ă­zenĂ­" : "Found and known devices",
     noResults: isCs
-      ? "Zatím tu nejsou žádná nově vybraná zařízení. Zkus USB, Bluetooth nebo přidej Wi-Fi gateway."
-      : "No newly selected devices yet. Try USB, Bluetooth, or add a Wi-Fi gateway.",
-    known: isCs ? "Známé" : "Known",
-    reloadKnown: isCs ? "Načíst známá zařízení" : "Reload known devices",
-    useDevice: isCs ? "Použít" : "Use device",
+      ? "ZatĂ­m tu nejsou ĹľĂˇdnĂˇ novÄ› vybranĂˇ zaĹ™Ă­zenĂ­. Zkus USB nebo pĹ™idej Wi-Fi gateway."
+      : "No newly selected devices yet. Try USB or add a Wi-Fi gateway.",
+    known: isCs ? "ZnĂˇmĂ©" : "Known",
+    reloadKnown: isCs ? "NaÄŤĂ­st znĂˇmĂˇ zaĹ™Ă­zenĂ­" : "Reload known devices",
+    useDevice: isCs ? "PouĹľĂ­t" : "Use device",
     close: t.close,
-    securityTitle: isCs ? "Bezpečnost:" : "Security:",
+    securityTitle: isCs ? "BezpeÄŤnost:" : "Security:",
     securityBody: isCs
-      ? "aplikace nesmí potichu procházet USB, Bluetooth ani LAN. Každý přístup vyžaduje kliknutí, souhlas uživatele nebo adresu důvěryhodné gateway."
-      : "the app must not silently enumerate USB, Bluetooth, or LAN devices. Each access requires a click, user permission, or a trusted gateway address.",
-    busy: isCs ? "Čekám na prohlížeč..." : "Waiting for browser...",
+      ? "aplikace nesmĂ­ potichu prochĂˇzet USB, Bluetooth ani LAN. KaĹľdĂ˝ pĹ™Ă­stup vyĹľaduje kliknutĂ­, souhlas uĹľivatele nebo adresu dĹŻvÄ›ryhodnĂ© gateway."
+      : "the app must not silently enumerate USB or LAN devices. Each access requires a click, user permission, or a trusted gateway address.",
+    busy: isCs ? "ÄŚekĂˇm na prohlĂ­ĹľeÄŤ..." : "Waiting for browser...",
   };
   const selectedDiscoveryCandidate =
     discoveryCandidates.find((candidate) => candidate.id === selectedDiscoveryCandidateId) ?? null;
   const canSaveNewDevice =
     discoveryCandidates.length > 0 && selectedDiscoveryCandidate !== null && newDeviceName.trim().length > 0;
-  const connectSearchButtonLabel = isCs ? "Hledat zařízení" : "Search for devices";
-  const connectBusyLabel = isCs ? "Čekám na prohlížeč..." : "Waiting for browser...";
+  const connectSearchButtonLabel = isCs ? "Hledat zaĹ™Ă­zenĂ­" : "Search for devices";
+  const connectBusyLabel = isCs ? "ÄŚekĂˇm na prohlĂ­ĹľeÄŤ..." : "Waiting for browser...";
   const connectModeSectionLabel = isCs
-    ? "Toto zařízení bude poskytovat data pro tyto režimy:"
+    ? "Toto zaĹ™Ă­zenĂ­ bude poskytovat data pro tyto reĹľimy:"
     : "This device contributes to these modes:";
-  const connectSelectedLabel = isCs ? "Vybráno" : "Selected";
+  const connectSelectedLabel = isCs ? "VybrĂˇno" : "Selected";
   const connectSelectLabel = isCs ? "Vybrat" : "Select";
-  const connectSaveLabel = isCs ? "Uložit" : "Save";
-  const connectSavingLabel = isCs ? "Ukládám..." : "Saving...";
+  const connectSaveLabel = isCs ? "UloĹľit" : "Save";
+  const connectSavingLabel = isCs ? "UklĂˇdĂˇm..." : "Saving...";
   const getConnectModeLabel = (envMode: EnvironmentMode, fallback: string) =>
     withMockModeSuffix(envMode, modeMetaOverrides[envMode]?.name ?? fallback);
   const connectModeLabels: Record<EnvironmentMode, string> = {
@@ -585,7 +564,7 @@ export default function Devices() {
           ? (isCs ? "Chyba" : "Error")
           : (isCs ? "Offline" : "Offline"),
       detail: isCs
-        ? `Registrováno v backendu. Umístění: ${device.location || "bez umístění"}. Poslední data: ${timeAgo(device.last_seen)} ${t.ago}.`
+        ? `RegistrovĂˇno v backendu. UmĂ­stÄ›nĂ­: ${device.location || "bez umĂ­stÄ›nĂ­"}. PoslednĂ­ data: ${timeAgo(device.last_seen)} ${t.ago}.`
         : `Registered in backend. Location: ${device.location || "no location"}. Last data: ${timeAgo(device.last_seen)} ${t.ago}.`,
     }));
   }
@@ -605,10 +584,10 @@ export default function Devices() {
       statusLabel,
       detail: hardwareLabel
         ? (isCs
-          ? `Port má povolení pro tento web. ${hardwareLabel}. Pro ESP32 se následně použije sériový přenos nebo lokální gateway.`
+          ? `Port mĂˇ povolenĂ­ pro tento web. ${hardwareLabel}. Pro ESP32 se nĂˇslednÄ› pouĹľije sĂ©riovĂ˝ pĹ™enos nebo lokĂˇlnĂ­ gateway.`
           : `This site has permission for the port. ${hardwareLabel}. For ESP32, the next step is serial transfer or a local gateway.`)
         : (isCs
-          ? "Port má povolení pro tento web, ale prohlížeč nevrátil VID/PID. Název ověř podle fyzického zařízení."
+          ? "Port mĂˇ povolenĂ­ pro tento web, ale prohlĂ­ĹľeÄŤ nevrĂˇtil VID/PID. NĂˇzev ovÄ›Ĺ™ podle fyzickĂ©ho zaĹ™Ă­zenĂ­."
           : "This site has permission for the port, but the browser did not return VID/PID. Verify the name against the physical device."),
     };
   }
@@ -625,40 +604,22 @@ export default function Devices() {
       try {
         const ports = await nav.serial.getPorts();
         additions.push(...ports.map((port, index) =>
-          buildUsbCandidate(port, index, isCs ? "Již povoleno" : "Already allowed")
+          buildUsbCandidate(port, index, isCs ? "JiĹľ povoleno" : "Already allowed")
         ));
       } catch (err) {
         console.warn("Failed to read authorized serial ports:", err);
       }
     }
 
-    if (nav.bluetooth?.getDevices) {
-      try {
-        const bluetoothDevices = await nav.bluetooth.getDevices();
-        additions.push(...bluetoothDevices.map((device, index) => ({
-          id: `ble:${device.id ?? index}`,
-          name: device.name?.trim() || `Bluetooth LE device ${index + 1}`,
-          transport: "ble" as const,
-          methodLabel: "Bluetooth LE",
-          statusLabel: isCs ? "Již povoleno" : "Already allowed",
-          detail: isCs
-            ? "Bluetooth zařízení už má pro tento web povolení. Připojení bude fungovat jen s firmwarem, který nabízí kompatibilní BLE službu."
-            : "This Bluetooth device is already allowed for this site. Pairing works only with firmware exposing a compatible BLE service.",
-        })));
-      } catch (err) {
-        console.warn("Failed to read authorized Bluetooth devices:", err);
-      }
-    }
-
     if (additions.length > 0) {
       addDiscoveryCandidates(additions);
       setDiscoveryMessage(isCs
-        ? "Načetl jsem známá backendová zařízení a již povolené browser porty."
+        ? "NaÄŤetl jsem znĂˇmĂˇ backendovĂˇ zaĹ™Ă­zenĂ­ a jiĹľ povolenĂ© browser porty."
         : "Loaded backend-known devices and browser-approved ports.");
     } else {
       setDiscoveryMessage(isCs
-        ? "Načetl jsem známá backendová zařízení. Nový USB/Bluetooth přístup vyžaduje ruční výběr."
-        : "Loaded backend-known devices. New USB/Bluetooth access requires manual selection.");
+        ? "NaÄŤetl jsem znĂˇmĂˇ backendovĂˇ zaĹ™Ă­zenĂ­. NovĂ˝ USB pĹ™Ă­stup vyĹľaduje ruÄŤnĂ­ vĂ˝bÄ›r."
+        : "Loaded backend-known devices. New USB access requires manual selection.");
     }
 
     setDiscoveryBusy(null);
@@ -668,13 +629,13 @@ export default function Devices() {
     const nav = navigator as NavigatorWithDeviceDiscovery;
     if (!window.isSecureContext) {
       setDiscoveryMessage(isCs
-        ? "USB Serial funguje jen v bezpečném kontextu: localhost nebo HTTPS."
+        ? "USB Serial funguje jen v bezpeÄŤnĂ©m kontextu: localhost nebo HTTPS."
         : "USB Serial works only in a secure context: localhost or HTTPS.");
       return;
     }
     if (!nav.serial) {
       setDiscoveryMessage(isCs
-        ? "Tento prohlížeč nepodporuje Web Serial. Použij Chrome/Edge nebo lokální Node-RED gateway."
+        ? "Tento prohlĂ­ĹľeÄŤ nepodporuje Web Serial. PouĹľij Chrome/Edge nebo lokĂˇlnĂ­ Node-RED gateway."
         : "This browser does not support Web Serial. Use Chrome/Edge or the local Node-RED gateway.");
       return;
     }
@@ -683,55 +644,14 @@ export default function Devices() {
       setDiscoveryBusy("usb");
       setDiscoveryMessage(null);
       const port = await nav.serial.requestPort();
-      addDiscoveryCandidates([buildUsbCandidate(port, Date.now(), isCs ? "Vybráno nyní" : "Selected now")]);
+      addDiscoveryCandidates([buildUsbCandidate(port, Date.now(), isCs ? "VybrĂˇno nynĂ­" : "Selected now")]);
       setDiscoveryMessage(isCs
-        ? "USB port byl vybrán. Teď ho můžeš použít jako profil zařízení nebo ponechat sběr přes Node-RED gateway."
+        ? "USB port byl vybrĂˇn. TeÄŹ ho mĹŻĹľeĹˇ pouĹľĂ­t jako profil zaĹ™Ă­zenĂ­ nebo ponechat sbÄ›r pĹ™es Node-RED gateway."
         : "USB port selected. You can use it as a device profile or keep collecting through the Node-RED gateway.");
     } catch (err) {
       setDiscoveryMessage(isCs
-        ? "Výběr USB portu byl zrušen nebo zamítnut."
+        ? "VĂ˝bÄ›r USB portu byl zruĹˇen nebo zamĂ­tnut."
         : "USB port selection was cancelled or denied.");
-    } finally {
-      setDiscoveryBusy(null);
-    }
-  }
-
-  async function handleBluetoothDiscovery() {
-    const nav = navigator as NavigatorWithDeviceDiscovery;
-    if (!window.isSecureContext) {
-      setDiscoveryMessage(isCs
-        ? "Bluetooth discovery funguje jen v bezpečném kontextu: localhost nebo HTTPS."
-        : "Bluetooth discovery works only in a secure context: localhost or HTTPS.");
-      return;
-    }
-    if (!nav.bluetooth) {
-      setDiscoveryMessage(isCs
-        ? "Tento prohlížeč nepodporuje Web Bluetooth. Pro naše aktuální ESP32 měření používej USB/Node-RED gateway."
-        : "This browser does not support Web Bluetooth. For the current ESP32 measurements, use USB/Node-RED gateway.");
-      return;
-    }
-
-    try {
-      setDiscoveryBusy("ble");
-      setDiscoveryMessage(null);
-      const device = await nav.bluetooth.requestDevice({ acceptAllDevices: true });
-      addDiscoveryCandidates([{
-        id: `ble:${device.id ?? Date.now()}`,
-        name: device.name?.trim() || "Bluetooth LE device",
-        transport: "ble",
-        methodLabel: "Bluetooth LE",
-        statusLabel: isCs ? "Vybráno nyní" : "Selected now",
-        detail: isCs
-          ? "Prohlížeč má oprávnění k tomuto BLE zařízení. Skutečné čtení dat vyžaduje firmware s kompatibilní GATT službou."
-          : "The browser has permission for this BLE device. Real data reading requires firmware with a compatible GATT service.",
-      }]);
-      setDiscoveryMessage(isCs
-        ? "Bluetooth zařízení bylo vybráno. Pro produkci bude potřeba přesně filtrovat naši BLE službu."
-        : "Bluetooth device selected. Production pairing should filter for our exact BLE service.");
-    } catch (err) {
-      setDiscoveryMessage(isCs
-        ? "Výběr Bluetooth zařízení byl zrušen nebo zamítnut."
-        : "Bluetooth device selection was cancelled or denied.");
     } finally {
       setDiscoveryBusy(null);
     }
@@ -748,15 +668,15 @@ export default function Devices() {
         name,
         transport: "wifi",
         methodLabel: "Wi-Fi / Gateway",
-        statusLabel: isCs ? "Ručně zadáno" : "Manual",
+        statusLabel: isCs ? "RuÄŤnÄ› zadĂˇno" : "Manual",
         detail: isCs
-          ? `Gateway endpoint: ${url}. Před čtením dat musí backend/Node-RED ověřit, že jde o důvěryhodnou Team2App gateway.`
+          ? `Gateway endpoint: ${url}. PĹ™ed ÄŤtenĂ­m dat musĂ­ backend/Node-RED ovÄ›Ĺ™it, Ĺľe jde o dĹŻvÄ›ryhodnou Team2App gateway.`
           : `Gateway endpoint: ${url}. Before reading data, backend/Node-RED must verify that it is a trusted Team2App gateway.`,
       }]);
       setWifiGatewayUrl("");
       setWifiGatewayName("");
       setDiscoveryMessage(isCs
-        ? "Wi-Fi gateway byla přidána do seznamu kandidátů."
+        ? "Wi-Fi gateway byla pĹ™idĂˇna do seznamu kandidĂˇtĹŻ."
         : "Wi-Fi gateway added to the candidate list.");
     } catch (err) {
       setDiscoveryMessage(err instanceof Error ? err.message : "Invalid gateway URL.");
@@ -764,12 +684,11 @@ export default function Devices() {
   }
 
   function useDiscoveryCandidate(candidate: DiscoveryCandidate) {
-    if (candidate.selectable === false) return;
     setSelectedDiscoveryCandidateId(candidate.id);
     setNewDeviceName(candidate.name);
     setNewDeviceModes([]);
     setConnectMessage(isCs
-      ? "Profil byl předvyplněn z vyhledávání. Před uložením ověř, že zařízení skutečně patří k projektu."
+      ? "Profil byl pĹ™edvyplnÄ›n z vyhledĂˇvĂˇnĂ­. PĹ™ed uloĹľenĂ­m ovÄ›Ĺ™, Ĺľe zaĹ™Ă­zenĂ­ skuteÄŤnÄ› patĹ™Ă­ k projektu."
       : "Profile prefilled from discovery. Verify that the device really belongs to the project before saving.");
     setSearchModalOpen(false);
     setConnectModalOpen(true);
@@ -781,10 +700,10 @@ export default function Devices() {
   }
 
   function getConnectModeChipTitle(isActive: boolean): string {
-    if (!selectedDiscoveryCandidate) return isCs ? "Nejdřív vyber zařízení." : "Select a device first.";
+    if (!selectedDiscoveryCandidate) return isCs ? "NejdĹ™Ă­v vyber zaĹ™Ă­zenĂ­." : "Select a device first.";
     return isActive
-      ? (isCs ? "Kliknutím odebrat režim" : "Click to remove mode")
-      : (isCs ? "Kliknutím přidat režim" : "Click to add mode");
+      ? (isCs ? "KliknutĂ­m odebrat reĹľim" : "Click to remove mode")
+      : (isCs ? "KliknutĂ­m pĹ™idat reĹľim" : "Click to add mode");
   }
 
   function toggleNewDeviceMode(targetMode: EnvironmentMode) {
@@ -800,7 +719,7 @@ export default function Devices() {
 
   async function handleConnectDevice() {
     if (discoveryCandidates.length === 0 || !selectedDiscoveryCandidate) {
-      setConnectMessage(isCs ? "Nejdřív najdi a vyber zařízení." : "Find and select a device first.");
+      setConnectMessage(isCs ? "NejdĹ™Ă­v najdi a vyber zaĹ™Ă­zenĂ­." : "Find and select a device first.");
       return;
     }
 
@@ -826,7 +745,7 @@ export default function Devices() {
         }
       }
 
-      setConnectMessage(isCs ? "Zařízení bylo uloženo." : "Device saved.");
+      setConnectMessage(isCs ? "ZaĹ™Ă­zenĂ­ bylo uloĹľeno." : "Device saved.");
     } catch (err) {
       setConnectMessage(err instanceof Error ? err.message : t.error);
     } finally {
@@ -893,16 +812,16 @@ export default function Devices() {
             onMouseDown={(e) => e.stopPropagation()}
           >
             <h3 className="devices-connect-title" id="disconnect-device-title">
-              {isCs ? "Odpojit zařízení" : "Disconnect device"}
+              {isCs ? "Odpojit zaĹ™Ă­zenĂ­" : "Disconnect device"}
             </h3>
             <p className="modal-text">
               {isCs
-                ? `Opravdu chcete odpojit zařízení „${getDisplayDeviceName(disconnectTarget, t)}“?`
+                ? `Opravdu chcete odpojit zaĹ™Ă­zenĂ­ â€ž${getDisplayDeviceName(disconnectTarget, t)}â€ś?`
                 : `Are you sure you want to disconnect "${getDisplayDeviceName(disconnectTarget, t)}"?`}
             </p>
             <p className="settings-preference-desc">
               {isCs
-                ? "Historická měření zůstanou uložená. Pokud zařízení dál posílá data přes gateway, může se znovu zaregistrovat."
+                ? "HistorickĂˇ mÄ›Ĺ™enĂ­ zĹŻstanou uloĹľenĂˇ. Pokud zaĹ™Ă­zenĂ­ dĂˇl posĂ­lĂˇ data pĹ™es gateway, mĹŻĹľe se znovu zaregistrovat."
                 : "Historical readings will remain stored. If the device keeps sending data through the gateway, it can register again."}
             </p>
             {disconnectMessage && <p className="devices-connect-message">{disconnectMessage}</p>}
@@ -911,7 +830,6 @@ export default function Devices() {
                 type="button"
                 className="btn btn-outline"
                 onClick={resetDisconnectModal}
-                disabled={disconnectingDevice}
               >
                 {t.confirm_cancel}
               </button>
@@ -919,7 +837,6 @@ export default function Devices() {
                 type="button"
                 className="btn btn-danger"
                 onClick={() => void confirmDisconnectDevice()}
-                disabled={disconnectingDevice}
               >
                 {disconnectingDevice
                   ? (isCs ? "Odpojuji..." : "Disconnecting...")
@@ -951,8 +868,8 @@ export default function Devices() {
                 type="button"
                 className="devices-modal-close"
                 onClick={resetConnectModal}
-                aria-label={isCs ? "Zavřít" : "Close"}
-                title={isCs ? "Zavřít" : "Close"}
+                aria-label={isCs ? "ZavĹ™Ă­t" : "Close"}
+                title={isCs ? "ZavĹ™Ă­t" : "Close"}
               >
                 <X size={17} />
               </button>
@@ -962,7 +879,6 @@ export default function Devices() {
               type="button"
               className="btn btn-primary devices-connect-search-action"
               onClick={() => void refreshKnownDiscovery()}
-              disabled={discoveryBusy !== null}
             >
               <Search size={18} />
               <span>{discoveryBusy === "known" ? connectBusyLabel : connectSearchButtonLabel}</span>
@@ -1030,7 +946,6 @@ export default function Devices() {
                       type="button"
                       className={`device-mode-chip ${isActive ? "active" : ""}`}
                       onClick={() => toggleNewDeviceMode(envMode)}
-                      disabled={!selectedDiscoveryCandidate}
                       aria-pressed={isActive}
                       title={getConnectModeChipTitle(isActive)}
                     >
@@ -1080,8 +995,8 @@ export default function Devices() {
                 type="button"
                 className="devices-modal-close"
                 onClick={resetSearchModal}
-                aria-label={isCs ? "Zavřít" : "Close"}
-                title={isCs ? "Zavřít" : "Close"}
+                aria-label={isCs ? "ZavĹ™Ă­t" : "Close"}
+                title={isCs ? "ZavĹ™Ă­t" : "Close"}
               >
                 <X size={17} />
               </button>
@@ -1098,25 +1013,8 @@ export default function Devices() {
                   className="btn btn-outline btn-sm"
                   type="button"
                   onClick={() => void handleUsbDiscovery()}
-                  disabled={discoveryBusy !== null}
                 >
                   {discoveryBusy === "usb" ? discoveryText.busy : discoveryText.usbAction}
-                </button>
-              </section>
-
-              <section className="device-discovery-card">
-                <div className="device-discovery-card-title">
-                  <Bluetooth size={17} />
-                  <h4>{discoveryText.bleTitle}</h4>
-                </div>
-                <p>{discoveryText.bleDescription}</p>
-                <button
-                  className="btn btn-outline btn-sm"
-                  type="button"
-                  onClick={() => void handleBluetoothDiscovery()}
-                  disabled={discoveryBusy !== null}
-                >
-                  {discoveryBusy === "ble" ? discoveryText.busy : discoveryText.bleAction}
                 </button>
               </section>
 
@@ -1130,7 +1028,6 @@ export default function Devices() {
                   className="btn btn-outline btn-sm"
                   type="button"
                   onClick={() => void refreshKnownDiscovery()}
-                  disabled={discoveryBusy !== null}
                 >
                   {discoveryBusy === "known" ? discoveryText.busy : discoveryText.reloadKnown}
                 </button>
@@ -1162,7 +1059,6 @@ export default function Devices() {
                   className="btn btn-primary btn-sm"
                   type="button"
                   onClick={handleAddWifiGateway}
-                  disabled={!wifiGatewayUrl.trim()}
                 >
                   {discoveryText.addGateway}
                 </button>
@@ -1220,3 +1116,4 @@ export default function Devices() {
     </div>
   );
 }
+
