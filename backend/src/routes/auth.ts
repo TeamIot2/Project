@@ -10,7 +10,7 @@ import { randomBytes } from "crypto";
 import { Router, Request, Response } from "express";
 import { authenticateToken, generateToken, validateLogin } from "../middleware/auth";
 import { LoginRequest } from "../../../shared/types";
-import { updateUserProfileInDb, upsertGoogleUserInDb } from "../services/database";
+import { DEFAULT_PROFILE_AVATAR_URL, updateUserProfileInDb, upsertGoogleUserInDb } from "../services/database";
 
 const router = Router();
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -123,6 +123,7 @@ function validateAvatarUrl(value: unknown): AvatarValidationResult {
 
   const trimmed = value.trim();
   if (!trimmed) return { ok: true, value: null };
+  if (trimmed === DEFAULT_PROFILE_AVATAR_URL) return { ok: true, value: trimmed };
 
   if (trimmed.startsWith("data:image/")) {
     if (trimmed.length > MAX_AVATAR_DATA_URL_LENGTH) {
@@ -169,7 +170,7 @@ function redirectToFrontend(
 }
 
 // POST /api/auth/login
-router.post("/login", (req: Request, res: Response) => {
+router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body as LoginRequest;
 
   if (!email || !password) {
@@ -177,7 +178,7 @@ router.post("/login", (req: Request, res: Response) => {
     return;
   }
 
-  const result = validateLogin({ email, password });
+  const result = await validateLogin({ email, password });
 
   if (!result) {
     res.status(401).json({ error: "Invalid email or password" });
@@ -286,7 +287,7 @@ router.get("/google/callback", async (req: Request, res: Response) => {
       throw new Error("Google email is not verified");
     }
 
-    const user = upsertGoogleUserInDb({
+    const user = await upsertGoogleUserInDb({
       googleId: userInfo.sub,
       email: userInfo.email,
       name: userInfo.name || userInfo.email,
@@ -313,7 +314,7 @@ router.get("/me", authenticateToken, (req: Request, res: Response) => {
 });
 
 // PATCH /api/auth/me
-router.patch("/me", authenticateToken, (req: Request, res: Response) => {
+router.patch("/me", authenticateToken, async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
   const name = normalizeProfileName(body.name);
   if (!name) {
@@ -334,7 +335,7 @@ router.patch("/me", authenticateToken, (req: Request, res: Response) => {
     return;
   }
 
-  const updatedUser = updateUserProfileInDb(userId, {
+  const updatedUser = await updateUserProfileInDb(userId, {
     name,
     timezone,
     ...(avatar.value !== undefined ? { avatarUrl: avatar.value } : {}),

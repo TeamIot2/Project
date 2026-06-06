@@ -15,6 +15,7 @@ import { Home, BarChart2, Cpu, Settings, Moon, Sun, Briefcase, Activity, LogOut,
 import { ModalPortal } from "./ModalPortal";
 import type { EnvironmentMode } from "../types";
 import type { Translations } from "../i18n/translations";
+import { resolveAvatarSrc } from "../utils/avatar";
 import { withMockModeSuffix } from "../utils/modeLabels";
 
 // Navigation items — labels resolved via translations
@@ -101,6 +102,7 @@ export default function Layout() {
     greenhouse: "#4ADE80",
   };
   const accentColor = modeAccentColor[mode] ?? "#FDE68A";
+  const userAvatarSrc = resolveAvatarSrc(user?.avatar_url);
   const FIGMA_ACTIVE_CARD_WIDTH = 356;
   const FIGMA_SIDE_CARD_WIDTH = 228;
 
@@ -200,8 +202,8 @@ export default function Layout() {
         <div className="sidebar-footer">
           <div className="sidebar-user">
             <div className="user-avatar-sm">
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="user-avatar-sm-img" />
+              {userAvatarSrc ? (
+                <img src={userAvatarSrc} alt="" className="user-avatar-sm-img" />
               ) : (
                 user?.name?.charAt(0).toUpperCase() ?? "U"
               )}
@@ -296,8 +298,8 @@ export default function Layout() {
               aria-haspopup="menu"
             >
               <div className="user-avatar-sm">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="user-avatar-sm-img" />
+                {userAvatarSrc ? (
+                  <img src={userAvatarSrc} alt="" className="user-avatar-sm-img" />
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />

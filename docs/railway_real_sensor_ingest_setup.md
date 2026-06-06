@@ -195,25 +195,52 @@ Useful deployment variables:
 - `AUTO_SEED_MOCK_DATA=true` if the app should seed demo data when the database is empty
 - `BOOTSTRAP_DEMO_DEVICES=true` if demo devices should exist alongside the real device
 
-## Database Persistence Warning
+## Database Persistence
 
-The backend currently uses `sql.js` and a SQLite-style database file.
+The backend now supports PostgreSQL through the `DATABASE_URL` environment variable.
 
-Local database file:
+Production target:
+
+```text
+Railway PostgreSQL -> app service variable DATABASE_URL
+```
+
+When `DATABASE_URL` is set, the backend stores users, devices, monitoring state, and readings in PostgreSQL. When `DATABASE_URL` is not set, the backend falls back to the local `sql.js` SQLite-style database file for local development and emergency recovery.
+
+Local fallback database file:
 
 ```text
 U:\ide_workspaces\Team2App\Team2App_ROOT\PROJECT\backend\data\readings.db
 ```
 
-On Railway, the runtime filesystem is not a good long-term database strategy unless a persistent Railway volume is explicitly configured.
+Local SQLite safety backup created before the PostgreSQL work:
 
-For reliable production history, migrate to one of these:
+```text
+C:\WORKSPACES\Team2App\Team2App_local_backup\database-migration-safety\readings-before-postgres-1101_06-06-2026.db
+```
 
-- Railway PostgreSQL through `DATABASE_URL`
-- Railway volume mounted to a stable `READINGS_DB_PATH`
-- Another managed persistent database
+Preferred production migration after the Railway PostgreSQL `DATABASE_URL` is available:
 
-PostgreSQL is currently the most suitable Railway-native direction for production.
+```powershell
+cd C:\WORKSPACES\Team2App\Team2App_ROOT\PROJECT\backend
+$env:DATABASE_URL="<railway-postgres-url>"
+$env:SOURCE_API_BASE="https://team2.up.railway.app/api"
+$env:SOURCE_ADMIN_EMAIL="admin@email.com"
+$env:SOURCE_ADMIN_PASSWORD="<current-admin-password>"
+npm run migrate:railway-api-to-postgres
+```
+
+This pulls devices and readings from the currently deployed Railway API before the app service is switched to PostgreSQL. It inserts only readings that do not already exist by `device_id + timestamp + source`, so it can be rerun during the cutover window.
+
+Local fallback migration command, useful only when the local SQLite file is the desired source:
+
+```powershell
+cd C:\WORKSPACES\Team2App\Team2App_ROOT\PROJECT\backend
+$env:DATABASE_URL="<railway-postgres-url>"
+npm run migrate:sqlite-to-postgres
+```
+
+Both migration commands are additive: they create the PostgreSQL schema if needed, upsert users/devices where applicable, insert only missing readings, and do not delete or modify the original SQLite database file.
 
 ## Verification Checklist
 

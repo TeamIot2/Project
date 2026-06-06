@@ -21,14 +21,14 @@ const DEMO_DEVICE_ROSTER: Array<{
   { device_id: "esp32-005", name: "School (mock)", location: "School placeholder", firmware_version: "1.2.1", battery_v: 4.01, status: "online" },
 ];
 
-function ensureSchoolSeedReading(nowIso: string): void {
-  const schoolLatest = getLatestReadingFromDb("esp32-005");
+async function ensureSchoolSeedReading(nowIso: string): Promise<void> {
+  const schoolLatest = await getLatestReadingFromDb("esp32-005");
   if (schoolLatest) return;
 
   const source =
-    getLatestReadingFromDb("esp32-002")
-    ?? getLatestReadingFromDb("esp32-001")
-    ?? getLatestReadingFromDb("esp32-004");
+    (await getLatestReadingFromDb("esp32-002"))
+    ?? (await getLatestReadingFromDb("esp32-001"))
+    ?? (await getLatestReadingFromDb("esp32-004"));
 
   if (!source) return;
 
@@ -39,14 +39,14 @@ function ensureSchoolSeedReading(nowIso: string): void {
     source: "demo-bootstrap",
   };
 
-  insertReadings([schoolReading]);
+  await insertReadings([schoolReading]);
   console.log("[DemoBootstrap] Created initial simulated reading for School device (esp32-005).");
 }
 
-export function ensureDemoDeviceRoster(): void {
+export async function ensureDemoDeviceRoster(): Promise<void> {
   const nowIso = new Date().toISOString();
 
-  deleteDeviceFromDb("esp32-003");
+  await deleteDeviceFromDb("esp32-003");
 
   for (const entry of DEMO_DEVICE_ROSTER) {
     const device: DeviceInfo = {
@@ -58,9 +58,9 @@ export function ensureDemoDeviceRoster(): void {
       firmware_version: entry.firmware_version,
       battery_v: entry.battery_v,
     };
-    upsertDevice(device);
+    await upsertDevice(device);
   }
 
-  ensureSchoolSeedReading(nowIso);
+  await ensureSchoolSeedReading(nowIso);
   flushDatabase();
 }

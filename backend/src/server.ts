@@ -65,6 +65,14 @@ function readBooleanEnv(name: string, defaultValue: boolean): boolean {
 
 const AUTO_SEED_MOCK_DATA = readBooleanEnv("AUTO_SEED_MOCK_DATA", true);
 const BOOTSTRAP_DEMO_DEVICES = readBooleanEnv("BOOTSTRAP_DEMO_DEVICES", true);
+const BACKEND_ASSETS_CANDIDATES = [
+  path.resolve(process.cwd(), "backend/assets"),       // cwd = PROJECT/
+  path.resolve(process.cwd(), "assets"),               // cwd = PROJECT/backend/
+  path.resolve(__dirname, "../assets"),                // dev: __dirname = backend/src
+  path.resolve(__dirname, "../../../assets"),          // prod: __dirname = backend/dist/backend/src
+];
+const BACKEND_ASSETS =
+  BACKEND_ASSETS_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? BACKEND_ASSETS_CANDIDATES[0];
 
 // ============================================================
 // Middleware
@@ -78,6 +86,16 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader("X-Frame-Options", "DENY");
   next();
 });
+
+if (fs.existsSync(BACKEND_ASSETS)) {
+  app.use("/api/assets", express.static(BACKEND_ASSETS, {
+    immutable: true,
+    maxAge: "1d",
+  }));
+  console.log("[Static] Serving backend assets from", BACKEND_ASSETS);
+} else {
+  console.warn("[Static] Backend assets folder not found:", BACKEND_ASSETS);
+}
 
 // ============================================================
 // Routes
@@ -145,22 +163,22 @@ async function start() {
   await initDatabase();
 
   // Auto-seed with mock data if database is empty (e.g. fresh Railway deploy)
-  if (AUTO_SEED_MOCK_DATA && !hasData()) {
+  if (AUTO_SEED_MOCK_DATA && !(await hasData())) {
     console.log("[Start] Empty database detected - running auto-seed...");
-    autoSeed();
-  } else if (!AUTO_SEED_MOCK_DATA && !hasData()) {
+    await autoSeed();
+  } else if (!AUTO_SEED_MOCK_DATA && !(await hasData())) {
     console.log("[Start] Empty database detected and mock auto-seed is disabled.");
   }
 
   if (BOOTSTRAP_DEMO_DEVICES) {
-    ensureDemoDeviceRoster();
+    await ensureDemoDeviceRoster();
   } else {
     console.log("[Start] Demo device bootstrap is disabled.");
   }
 
-  removeSyntheticOfficeHistory();
-  ensureRealPresentationHistoryData();
-  ensurePersistentGymHistoryMockData();
+  await removeSyntheticOfficeHistory();
+  await ensureRealPresentationHistoryData();
+  await ensurePersistentGymHistoryMockData();
 
   app.listen(PORT, () => {
     console.log(`Backend running at http://localhost:${PORT}`);

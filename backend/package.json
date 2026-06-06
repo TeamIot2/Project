@@ -8,6 +8,8 @@
     "build": "node ./node_modules/typescript/bin/tsc",
     "start": "node dist/backend/src/server.js",
     "seed": "node ./node_modules/ts-node/dist/bin.js scripts/seed.ts",
+    "migrate:sqlite-to-postgres": "node ./node_modules/ts-node/dist/bin.js scripts/migrateSqliteToPostgres.ts",
+    "migrate:railway-api-to-postgres": "node ./node_modules/ts-node/dist/bin.js scripts/migrateRailwayApiToPostgres.ts",
     "mock:generate": "node ./node_modules/ts-node/dist/bin.js scripts/generateMockPayloads.ts"
   },
   "keywords": [],
@@ -17,6 +19,7 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "nodemailer": "^8.0.10",
+    "pg": "^8.21.0",
     "sql.js": "^1.14.1"
   },
   "devDependencies": {
@@ -24,6 +27,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.20.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

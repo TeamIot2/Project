@@ -19,12 +19,13 @@ function parseToken(token: string): string | null {
 
 export function validateLogin(
   credentials: LoginRequest
-): { token: string; user: User } | null {
-  const user = validateUserCredentialsInDb(credentials.email, credentials.password);
+): Promise<{ token: string; user: User } | null> {
+  return validateUserCredentialsInDb(credentials.email, credentials.password).then((user) => {
   if (!user) return null;
 
   const token = generateToken(user.id);
   return { token, user };
+  });
 }
 
 declare global {
@@ -55,12 +56,15 @@ export function authenticateToken(
     return;
   }
 
-  const user = getUserByIdFromDb(userId);
-  if (!user) {
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
+  void getUserByIdFromDb(userId)
+    .then((user) => {
+      if (!user) {
+        res.status(401).json({ error: "User not found" });
+        return;
+      }
 
-  req.user = user;
-  next();
+      req.user = user;
+      next();
+    })
+    .catch(next);
 }

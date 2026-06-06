@@ -101,20 +101,20 @@ function generateReadings(config: DeviceConfig): EnvironmentalReading[] {
 }
 
 /** Seed the database with mock data. Call only when DB is empty. */
-export function autoSeed(): void {
+export async function autoSeed(): Promise<void> {
   const t0 = Date.now();
   let total = 0;
 
   for (const config of DEVICE_CONFIGS) {
-    upsertDevice(config.info);
+    await upsertDevice(config.info);
     const readings = generateReadings(config);
     for (let i = 0; i < readings.length; i += 2000) {
-      insertReadings(readings.slice(i, i + 2000));
+      await insertReadings(readings.slice(i, i + 2000));
     }
     total += readings.length;
     const latest = readings[readings.length - 1];
     config.info.battery_v = latest.battery_v;
-    upsertDevice(config.info);
+    await upsertDevice(config.info);
   }
 
   flushDatabase();

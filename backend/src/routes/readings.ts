@@ -65,7 +65,7 @@ function inferGatewayMeasurementStart(
   return new Date(sentAtMs - elapsedMs).toISOString();
 }
 
-router.post("/ingest", (req: Request, res: Response) => {
+router.post("/ingest", async (req: Request, res: Response) => {
   const key = req.headers["x-gateway-key"] as string | undefined;
   if (key !== GATEWAY_KEY) {
     res.status(401).json({ error: "Invalid gateway key" });
@@ -106,15 +106,20 @@ router.post("/ingest", (req: Request, res: Response) => {
     source: typeof reading.source === "string" ? reading.source : "gateway-ingest",
   })) as EnvironmentalReading[];
 
-  const enabledReadings = normalizedReadings.filter((reading) => isDeviceMonitoringEnabled(reading.device_id));
+  const enabledReadings: EnvironmentalReading[] = [];
+  for (const reading of normalizedReadings) {
+    if (await isDeviceMonitoringEnabled(reading.device_id)) {
+      enabledReadings.push(reading);
+    }
+  }
   const droppedDisabled = normalizedReadings.length - enabledReadings.length;
-  const accepted = enabledReadings.length > 0 ? insertReadings(enabledReadings) : 0;
+  const accepted = enabledReadings.length > 0 ? await insertReadings(enabledReadings) : 0;
   const measurementStartedAt = inferGatewayMeasurementStart(sent_at, sequence, normalizedReadings);
 
   for (const reading of enabledReadings) {
-    upsertDevice(buildIngestDeviceInfo(reading, gateway_id));
+    await upsertDevice(buildIngestDeviceInfo(reading, gateway_id));
     if (measurementStartedAt) {
-      recordDeviceMeasurementStartFromGateway(reading.device_id, measurementStartedAt);
+      await recordDeviceMeasurementStartFromGateway(reading.device_id, measurementStartedAt);
     }
   }
 
@@ -144,17 +149,17 @@ function getDeviceIdsFromQuery(value: unknown): string[] {
     .filter(Boolean);
 }
 
-router.get("/uptime", (req: Request, res: Response) => {
+router.get("/uptime", async (req: Request, res: Response) => {
   const deviceIds = getDeviceIdsFromQuery(req.query.device_ids ?? req.query.device_id);
   if (deviceIds.length === 0) {
     res.status(400).json({ error: "device_ids query parameter is required" });
     return;
   }
 
-  res.json(getAppMeasurementUptime(deviceIds));
+  res.json(await getAppMeasurementUptime(deviceIds));
 });
 
-router.get("/mode-stats", (req: Request, res: Response) => {
+router.get("/mode-stats", async (req: Request, res: Response) => {
   const mode = typeof req.query.mode === "string" && req.query.mode.trim()
     ? req.query.mode.trim()
     : "unknown";
@@ -168,10 +173,10 @@ router.get("/mode-stats", (req: Request, res: Response) => {
     ? Number.parseInt(req.query.interval_seconds as string, 10)
     : undefined;
 
-  res.json(getAppModeMeasurementStats(mode, deviceIds, intervalSeconds));
+  res.json(await getAppModeMeasurementStats(mode, deviceIds, intervalSeconds));
 });
 
-router.get("/", (req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   const deviceId = req.query.device_id as string | undefined;
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
@@ -189,7 +194,7 @@ router.get("/", (req: Request, res: Response) => {
     return;
   }
 
-  const readings = getAppReadings({
+  const readings = await getAppReadings({
     deviceId,
     from,
     to,
@@ -200,8 +205,8 @@ router.get("/", (req: Request, res: Response) => {
 });
 
 // GET /api/readings/latest/:deviceId
-router.get("/latest/:deviceId", (req: Request, res: Response) => {
-  const reading = getAppLatestReading(req.params.deviceId as string);
+router.get("/latest/:deviceId", async (req: Request, res: Response) => {
+  const reading = await getAppLatestReading(req.params.deviceId as string);
 
   if (!reading) {
     res.status(404).json({ error: "Device not found or no readings available" });
@@ -212,7 +217,7 @@ router.get("/latest/:deviceId", (req: Request, res: Response) => {
 });
 
 // GET /api/readings/stats
-router.get("/stats", (req: Request, res: Response) => {
+router.get("/stats", async (req: Request, res: Response) => {
   const deviceId = req.query.device_id as string | undefined;
 
   if (!deviceId) {
@@ -223,7 +228,7 @@ router.get("/stats", (req: Request, res: Response) => {
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
 
-  const stats = getAppStats(deviceId, from, to);
+  const stats = await getAppStats(deviceId, from, to);
 
   if (!stats) {
     res.status(404).json({ error: "No data found for the specified device and range" });

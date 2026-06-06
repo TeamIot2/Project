@@ -172,21 +172,21 @@ function generateRealPresentationHistoryReadings(deviceId: string): Environmenta
   return readings;
 }
 
-export function removeSyntheticOfficeHistory(): void {
-  deleteSyntheticReadingsForDevice(REAL_OFFICE_DEVICE_ID);
-  deleteSyntheticReadingsForDevice(REAL_BEDROOM_DEVICE_ID);
+export async function removeSyntheticOfficeHistory(): Promise<void> {
+  await deleteSyntheticReadingsForDevice(REAL_OFFICE_DEVICE_ID);
+  await deleteSyntheticReadingsForDevice(REAL_BEDROOM_DEVICE_ID);
 }
 
-export function ensureRealPresentationHistoryData(): void {
-  const existingCount = countReadingsForDeviceSource(REAL_OFFICE_DEVICE_ID, REAL_PRESENTATION_HISTORY_SOURCE);
+export async function ensureRealPresentationHistoryData(): Promise<void> {
+  const existingCount = await countReadingsForDeviceSource(REAL_OFFICE_DEVICE_ID, REAL_PRESENTATION_HISTORY_SOURCE);
   if (existingCount === REAL_PRESENTATION_EXPECTED_READING_COUNT) {
     return;
   }
 
-  deleteReadingsForDeviceSource(REAL_OFFICE_DEVICE_ID, REAL_PRESENTATION_HISTORY_SOURCE);
+  await deleteReadingsForDeviceSource(REAL_OFFICE_DEVICE_ID, REAL_PRESENTATION_HISTORY_SOURCE);
   const readings = generateRealPresentationHistoryReadings(REAL_OFFICE_DEVICE_ID);
   for (let i = 0; i < readings.length; i += 1000) {
-    insertReadings(readings.slice(i, i + 1000));
+    await insertReadings(readings.slice(i, i + 1000));
   }
   flushDatabase();
   console.log(
@@ -194,10 +194,10 @@ export function ensureRealPresentationHistoryData(): void {
   );
 }
 
-export function ensurePersistentGymHistoryMockData(): void {
+export async function ensurePersistentGymHistoryMockData(): Promise<void> {
   const now = new Date();
-  const latest = getLatestReadingFromDb(HISTORY_GYM_MOCK_DEVICE_ID);
-  const existingCount = countReadingsForDevice(HISTORY_GYM_MOCK_DEVICE_ID);
+  const latest = await getLatestReadingFromDb(HISTORY_GYM_MOCK_DEVICE_ID);
+  const existingCount = await countReadingsForDevice(HISTORY_GYM_MOCK_DEVICE_ID);
   const latestAgeMs = latest ? now.getTime() - new Date(latest.timestamp).getTime() : Number.POSITIVE_INFINITY;
 
   const device: DeviceInfo = {
@@ -209,16 +209,16 @@ export function ensurePersistentGymHistoryMockData(): void {
     firmware_version: "history-mock-1.0",
     battery_v: 0,
   };
-  upsertDevice(device);
+  await upsertDevice(device);
 
   if (existingCount >= EXPECTED_READING_COUNT && latestAgeMs >= 0 && latestAgeMs <= MAX_LATEST_AGE_MS) {
     return;
   }
 
-  deleteReadingsForDevice(HISTORY_GYM_MOCK_DEVICE_ID);
+  await deleteReadingsForDevice(HISTORY_GYM_MOCK_DEVICE_ID);
   const readings = generateGymHistoryReadings(now);
   for (let i = 0; i < readings.length; i += 1000) {
-    insertReadings(readings.slice(i, i + 1000));
+    await insertReadings(readings.slice(i, i + 1000));
   }
   flushDatabase();
   console.log(`[HistoryMockSeed] Seeded ${readings.length} persistent Gym history readings.`);

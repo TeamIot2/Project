@@ -15,7 +15,7 @@ import { authenticateToken } from "../middleware/auth";
 const router = Router();
 const GATEWAY_KEY = process.env.GATEWAY_KEY || "gw-secret-key-change-me";
 
-router.get("/:id/monitoring-control", (req: Request, res: Response) => {
+router.get("/:id/monitoring-control", async (req: Request, res: Response) => {
   const key = req.headers["x-gateway-key"] as string | undefined;
   if (key !== GATEWAY_KEY) {
     res.status(401).json({ error: "Invalid gateway key" });
@@ -29,17 +29,17 @@ router.get("/:id/monitoring-control", (req: Request, res: Response) => {
     return;
   }
 
-  res.json(getDeviceMonitoringControl(deviceId));
+  res.json(await getDeviceMonitoringControl(deviceId));
 });
 
 router.use(authenticateToken);
 
-router.get("/", (_req: Request, res: Response) => {
-  res.json(getAppDevices());
+router.get("/", async (_req: Request, res: Response) => {
+  res.json(await getAppDevices());
 });
 
-router.get("/:id", (req: Request, res: Response) => {
-  const devices = getAppDevices();
+router.get("/:id", async (req: Request, res: Response) => {
+  const devices = await getAppDevices();
   const device = devices.find((candidate) => candidate.device_id === req.params.id);
 
   if (!device) {
@@ -50,7 +50,7 @@ router.get("/:id", (req: Request, res: Response) => {
   res.json(device);
 });
 
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", async (req: Request, res: Response) => {
   const rawDeviceId = req.params.id;
   const deviceId = Array.isArray(rawDeviceId) ? rawDeviceId[0] : rawDeviceId;
   const rawName = req.body?.name;
@@ -66,16 +66,16 @@ router.patch("/:id", (req: Request, res: Response) => {
   }
 
   const nextName = deviceId === REAL_OFFICE_DEVICE_ID ? REAL_SENSOR_DEVICE_NAME : rawName;
-  const updatedDevice = renameDeviceInDb(deviceId, nextName);
+  const updatedDevice = await renameDeviceInDb(deviceId, nextName);
   if (!updatedDevice) {
     res.status(404).json({ error: "Device not found" });
     return;
   }
 
-  res.json(getAppDevices().find((device) => device.device_id === deviceId) ?? updatedDevice);
+  res.json((await getAppDevices()).find((device) => device.device_id === deviceId) ?? updatedDevice);
 });
 
-router.patch("/:id/monitoring", (req: Request, res: Response) => {
+router.patch("/:id/monitoring", async (req: Request, res: Response) => {
   const rawDeviceId = req.params.id;
   const deviceId = Array.isArray(rawDeviceId) ? rawDeviceId[0] : rawDeviceId;
   const enabled = req.body?.enabled;
@@ -90,16 +90,16 @@ router.patch("/:id/monitoring", (req: Request, res: Response) => {
     return;
   }
 
-  const updatedDevice = setDeviceMonitoringInDb(deviceId, enabled);
+  const updatedDevice = await setDeviceMonitoringInDb(deviceId, enabled);
   if (!updatedDevice) {
     res.status(404).json({ error: "Device not found" });
     return;
   }
 
-  res.json(getAppDevices().find((device) => device.device_id === deviceId) ?? updatedDevice);
+  res.json((await getAppDevices()).find((device) => device.device_id === deviceId) ?? updatedDevice);
 });
 
-router.delete("/:id", (req: Request, res: Response) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   const rawDeviceId = req.params.id;
   const deviceId = Array.isArray(rawDeviceId) ? rawDeviceId[0] : rawDeviceId;
 
@@ -108,13 +108,13 @@ router.delete("/:id", (req: Request, res: Response) => {
     return;
   }
 
-  const existingDevice = getAppDevices().find((device) => device.device_id === deviceId);
+  const existingDevice = (await getAppDevices()).find((device) => device.device_id === deviceId);
   if (!existingDevice) {
     res.status(404).json({ error: "Device not found" });
     return;
   }
 
-  deleteDeviceFromDb(deviceId);
+  await deleteDeviceFromDb(deviceId);
   res.json({ ok: true, device_id: deviceId });
 });
 

@@ -117,8 +117,8 @@ function normalizeAppDevice(device: DeviceInfo): DeviceInfo {
   };
 }
 
-export function getAppDevices(): DeviceInfo[] {
-  const dbDevices = getDevicesFromDb()
+export async function getAppDevices(): Promise<DeviceInfo[]> {
+  const dbDevices = (await getDevicesFromDb())
     .filter((device) => device.device_id !== HISTORY_GYM_MOCK_DEVICE_ID)
     .filter((device) => device.device_id !== REAL_BEDROOM_DEVICE_ID)
     .map(normalizeAppDevice);
@@ -139,24 +139,24 @@ export function getAppReadings(options: {
   from?: string;
   to?: string;
   limit?: number;
-}): EnvironmentalReading[] {
+}): Promise<EnvironmentalReading[]> {
   if (options.deviceId && isDemoDevice(options.deviceId)) {
-    return getMockReadings(options);
+    return Promise.resolve(getMockReadings(options));
   }
 
   const dataDeviceId = resolveReadingDeviceId(options.deviceId);
   return queryReadings({
     ...options,
     deviceId: dataDeviceId,
-  }).map((reading) => rewriteReadingDeviceId(reading, options.deviceId));
+  }).then((readings) => readings.map((reading) => rewriteReadingDeviceId(reading, options.deviceId)));
 }
 
-export function getAppLatestReading(deviceId: string): EnvironmentalReading | undefined {
+export async function getAppLatestReading(deviceId: string): Promise<EnvironmentalReading | undefined> {
   if (isDemoDevice(deviceId)) {
     return getMockLatestReading(deviceId);
   }
 
-  const reading = getLatestReadingFromDb(resolveReadingDeviceId(deviceId) ?? deviceId);
+  const reading = await getLatestReadingFromDb(resolveReadingDeviceId(deviceId) ?? deviceId);
   return reading ? rewriteReadingDeviceId(reading, deviceId) : undefined;
 }
 
@@ -164,20 +164,19 @@ export function getAppStats(
   deviceId: string,
   from?: string,
   to?: string
-): {
+): Promise<{
   device_id: string;
   from: string;
   to: string;
   metrics: Record<string, { min: number; max: number; avg: number; current: number }>;
-} | null {
+} | null> {
   if (isDemoDevice(deviceId)) {
-    return getMockStats(deviceId, from, to);
+    return Promise.resolve(getMockStats(deviceId, from, to));
   }
 
-  const stats = getStatsFromDb(resolveReadingDeviceId(deviceId) ?? deviceId, from, to);
-  return stats && deviceId === REAL_BEDROOM_DEVICE_ID
+  return getStatsFromDb(resolveReadingDeviceId(deviceId) ?? deviceId, from, to).then((stats) => stats && deviceId === REAL_BEDROOM_DEVICE_ID
     ? { ...stats, device_id: REAL_BEDROOM_DEVICE_ID }
-    : stats;
+    : stats);
 }
 
 function parseTimestamp(value: string | undefined | null): number | null {
@@ -210,9 +209,9 @@ function resolveLiveStartedAtMs(
   return Math.max(...starts);
 }
 
-function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeasurementUptime {
+async function getDeviceMeasurementUptime(deviceId: string, nowMs: number): Promise<DeviceMeasurementUptime> {
   const dataDeviceId = resolveReadingDeviceId(deviceId) ?? deviceId;
-  const appDevices = getAppDevices();
+  const appDevices = await getAppDevices();
   const device =
     appDevices.find((candidate) => candidate.device_id === deviceId) ??
     appDevices.find((candidate) => candidate.device_id === dataDeviceId);
@@ -222,10 +221,10 @@ function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeas
 
   const monitoringStartedMs = parseTimestamp(device?.monitoring_updated_at);
   const measurementStartedMs = parseTimestamp(device?.measurement_started_at);
-  const readings = getAppReadings({
+  const readings = (await getAppReadings({
     deviceId,
     limit: MEASUREMENT_UPTIME_LOOKBACK_LIMIT,
-  })
+  }))
     .map((reading) => ({
       timestamp: reading.timestamp,
       time: parseTimestamp(reading.timestamp),
@@ -306,10 +305,10 @@ function getDeviceMeasurementUptime(deviceId: string, nowMs: number): DeviceMeas
   };
 }
 
-export function getAppMeasurementUptime(deviceIds: string[]): MeasurementUptimeResponse {
+export async function getAppMeasurementUptime(deviceIds: string[]): Promise<MeasurementUptimeResponse> {
   const uniqueDeviceIds = Array.from(new Set(deviceIds.map((id) => id.trim()).filter(Boolean)));
   const nowMs = Date.now();
-  const devices = uniqueDeviceIds.map((deviceId) => getDeviceMeasurementUptime(deviceId, nowMs));
+  const devices = await Promise.all(uniqueDeviceIds.map((deviceId) => getDeviceMeasurementUptime(deviceId, nowMs)));
   const activeDevices = devices.filter((device) => device.measuring && device.started_at !== null);
 
   if (activeDevices.length === 0) {
@@ -341,7 +340,7 @@ export function getAppMeasurementUptime(deviceIds: string[]): MeasurementUptimeR
   };
 }
 
-function getAppReadingTimestampMillis(deviceId: string): number[] {
+async function getAppReadingTimestampMillis(deviceId: string): Promise<number[]> {
   if (isDemoDevice(deviceId)) {
     return getMockReadings({ deviceId, limit: 100000 })
       .map((reading) => parseTimestamp(reading.timestamp))
@@ -349,7 +348,7 @@ function getAppReadingTimestampMillis(deviceId: string): number[] {
   }
 
   const dataDeviceId = resolveReadingDeviceId(deviceId) ?? deviceId;
-  return queryReadingTimestamps(dataDeviceId)
+  return (await queryReadingTimestamps(dataDeviceId))
     .map(parseTimestamp)
     .filter((time): time is number => time !== null);
 }
@@ -362,19 +361,19 @@ function median(values: number[]): number | null {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-export function getAppModeMeasurementStats(
+export async function getAppModeMeasurementStats(
   mode: string,
   deviceIds: string[],
   requestedIntervalSeconds?: number
-): ModeMeasurementStatsResponse {
+): Promise<ModeMeasurementStatsResponse> {
   const uniqueDeviceIds = Array.from(new Set(deviceIds.map((id) => id.trim()).filter(Boolean)));
   const uniqueDataDeviceIds = Array.from(new Set(uniqueDeviceIds.map((deviceId) => resolveReadingDeviceId(deviceId) ?? deviceId)));
   const intervalSeconds = Math.max(1, Math.floor(requestedIntervalSeconds ?? DEFAULT_READING_INTERVAL_SECONDS));
   const intervalMs = intervalSeconds * 1000;
   const maxGapMs = Math.max(MODE_STATS_MAX_CONTINUITY_GAP_SECONDS * 1000, intervalMs * 3);
 
-  const allTimes = uniqueDataDeviceIds
-    .flatMap((deviceId) => getAppReadingTimestampMillis(deviceId))
+  const allTimes = (await Promise.all(uniqueDataDeviceIds.map((deviceId) => getAppReadingTimestampMillis(deviceId))))
+    .flat()
     .filter((time) => Number.isFinite(time))
     .sort((a, b) => a - b);
 

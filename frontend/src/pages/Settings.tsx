@@ -27,6 +27,7 @@ import {
   type StoredThresholdValue,
   type ThresholdPoint,
 } from "../utils/modeThresholdStorage";
+import { resolveAvatarSrc } from "../utils/avatar";
 import { withMockModeSuffix } from "../utils/modeLabels";
 import { getTimeZoneOptions } from "../utils/timeZone";
 
@@ -307,6 +308,7 @@ export default function Settings() {
   };
 
   const displayName = nickname.trim() || user?.name || (isCs ? "Neznámý uživatel" : "Unknown user");
+  const avatarPreviewSrc = resolveAvatarSrc(avatarPreview);
   const notificationOptions = [
     {
       id: "none",
@@ -1141,8 +1143,8 @@ export default function Settings() {
         <h2 className="section-title">{t.profile}</h2>
         <div className="profile-info settings-profile-head">
           <div className="settings-avatar-wrap">
-            {avatarPreview ? (
-              <img src={avatarPreview} alt="Profile preview" className="settings-avatar-img" />
+            {avatarPreviewSrc ? (
+              <img src={avatarPreviewSrc} alt="Profile preview" className="settings-avatar-img" />
             ) : (
               <div className="settings-avatar-fallback">{initials}</div>
             )}
