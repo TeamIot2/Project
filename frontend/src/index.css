@@ -4087,6 +4087,8 @@ html[data-style="16"] .env-card.active .env-card-label {
   box-shadow: var(--shadow-lg);
   padding: 1.5rem;
   max-width: 340px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   width: 100%;
   text-align: center;
 }
@@ -8483,7 +8485,8 @@ html[data-style="16"] .env-card.active .env-card-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 200;
+  padding: 1rem;
 }
 
 .env-modal {
@@ -9151,6 +9154,7 @@ html[data-style="16"] .env-card.active .env-card-label {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  margin-top: 1.75rem;
 }
 
 .devices-connect-search-action {
@@ -9212,7 +9216,7 @@ html[data-style="16"] .env-card.active .env-card-label {
 }
 
 .devices-connect-mode-row {
-  margin-top: 0.85rem;
+  margin-top: 1.65rem;
 }
 
 .devices-connect-mode-help {
@@ -9644,7 +9648,17 @@ html[data-style="16"] .env-card.active .env-card-label {
 .mode-fav-btn.btn-outline {
   background: rgba(180, 120, 20, 0.92) !important;
   border-color: rgba(160, 100, 10, 0.9) !important;
-  color: #FEF3C7 !important;
+  color: #FFFFFF !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .settings-page .mode-fav-btn.btn-primary,
+[data-theme="light"] .settings-page .mode-fav-btn.btn-outline,
+[data-theme="dark"] .settings-page .mode-fav-btn.btn-primary,
+[data-theme="dark"] .settings-page .mode-fav-btn.btn-outline {
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
 }
 
 .mode-fav-btn.btn-primary:hover,
@@ -9810,7 +9824,6 @@ html[data-style="16"] .env-card.active .env-card-label {
   color: var(--text-muted);
 }
 
-.mode-editor-input-group-full,
 .mode-editor-input-group-notification {
   grid-column: 1 / -1;
 }
@@ -9819,6 +9832,35 @@ html[data-style="16"] .env-card.active .env-card-label {
   height: 34px;
   font-size: 0.76rem;
   padding: 0.32rem 0.45rem;
+}
+
+.mode-editor-input-group-tolerance {
+  min-width: 0;
+}
+
+.mode-editor-tolerance-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.mode-editor-tolerance-label output {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.mode-editor-tolerance-slider {
+  width: 100%;
+  height: 34px;
+  accent-color: #22C55E;
+  cursor: pointer;
+}
+
+.mode-editor-tolerance-slider:focus-visible {
+  outline: 2px solid rgba(34, 197, 94, 0.55);
+  outline-offset: 2px;
 }
 
 .mode-editor-input-group-critical {
@@ -10315,13 +10357,6 @@ html[data-style="16"] .env-card.active .env-card-label {
   max-width: 420px;
   text-align: left;
   border: 1px solid var(--border-light);
-}
-
-.settings-alert-confirm-modal-positioned {
-  position: fixed;
-  transform: translate(-50%, -50%);
-  margin: 0;
-  z-index: 201;
 }
 
 .settings-alert-confirm-modal .modal-text {

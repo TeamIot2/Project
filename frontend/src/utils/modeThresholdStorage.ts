@@ -2,6 +2,7 @@ import type { ThresholdRange } from "../types";
 
 export type ThresholdPoint = {
   ideal: number;
+  tolerancePct: number;
   lowerBad: number | null;
   upperBad: number | null;
   notification: number | null;
@@ -31,6 +32,7 @@ const QUALITY_GOOD_SCORE = 70;
 const QUALITY_MODERATE_SCORE = 40;
 const DEFAULT_NOISE_DB_THRESHOLD_POINT: ThresholdPoint = {
   ideal: 30,
+  tolerancePct: 0,
   lowerBad: null,
   upperBad: 75,
   notification: 70,
@@ -56,8 +58,16 @@ function normalizeOptionalThresholdValue(value: unknown): number | null {
   return isFiniteNumber(value) ? value : null;
 }
 
+function normalizeTolerancePct(value: unknown): number {
+  return isFiniteNumber(value) ? Math.round(clamp(value, 0, 99)) : 0;
+}
+
 function isNoiseMetricKey(metricKey: string): boolean {
   return metricKey === "noise_adc" || metricKey === "sound_level_adc";
+}
+
+function canonicalMetricKey(metricKey: string): string {
+  return metricKey === "sound_level_adc" ? "noise_adc" : metricKey;
 }
 
 function looksLikeLegacyNoiseAdcThreshold(point: ThresholdPoint): boolean {
@@ -79,6 +89,7 @@ function normalizeRange(range: [number, number]): [number, number] {
 export function cloneThresholdPoint(point: ThresholdPoint): ThresholdPoint {
   return {
     ideal: isFiniteNumber(point.ideal) ? point.ideal : 0,
+    tolerancePct: normalizeTolerancePct(point.tolerancePct),
     lowerBad: normalizeOptionalThresholdValue(point.lowerBad),
     upperBad: normalizeOptionalThresholdValue(point.upperBad),
     notification: normalizeOptionalThresholdValue(point.notification),
@@ -87,9 +98,15 @@ export function cloneThresholdPoint(point: ThresholdPoint): ThresholdPoint {
 }
 
 export function clonePointThresholds(thresholds: Record<string, ThresholdPoint>): Record<string, ThresholdPoint> {
-  return Object.fromEntries(
-    Object.entries(thresholds).map(([metricKey, point]) => [metricKey, cloneThresholdPoint(point)])
-  );
+  const result: Record<string, ThresholdPoint> = {};
+
+  for (const [metricKey, point] of Object.entries(thresholds)) {
+    const canonicalKey = canonicalMetricKey(metricKey);
+    if (metricKey !== canonicalKey && result[canonicalKey]) continue;
+    result[canonicalKey] = cloneThresholdPoint(point);
+  }
+
+  return result;
 }
 
 export function isThresholdPoint(value: unknown): value is ThresholdPoint {
@@ -97,7 +114,7 @@ export function isThresholdPoint(value: unknown): value is ThresholdPoint {
   const candidate = value as Record<string, unknown>;
   if (!isFiniteNumber(candidate.ideal)) return false;
   if (isLegacyThresholdPoint(candidate)) return false;
-  return "lowerBad" in candidate || "upperBad" in candidate || "notification" in candidate || "critical" in candidate;
+  return "lowerBad" in candidate || "upperBad" in candidate || "notification" in candidate || "critical" in candidate || "tolerancePct" in candidate;
 }
 
 function isLegacyThresholdPoint(value: unknown): value is LegacyThresholdPoint {
@@ -141,6 +158,7 @@ export function rangeToPoint(range: ThresholdRange): ThresholdPoint {
 
   return {
     ideal,
+    tolerancePct: 0,
     lowerBad,
     upperBad,
     notification: deriveRangeNotification(ideal, lowerBad, upperBad),
@@ -153,6 +171,7 @@ function legacyPointToPoint(point: LegacyThresholdPoint): ThresholdPoint {
 
   return {
     ideal: point.ideal,
+    tolerancePct: 0,
     lowerBad: ascending ? null : point.poor,
     upperBad: ascending ? point.poor : null,
     notification: normalizeOptionalThresholdValue(point.notification),
@@ -168,8 +187,10 @@ export function storedThresholdToPoint(value: unknown): ThresholdPoint | null {
 }
 
 export function thresholdsToPoints(thresholds: Record<string, ThresholdRange>): Record<string, ThresholdPoint> {
-  return Object.fromEntries(
-    Object.entries(thresholds).map(([metricKey, range]) => [metricKey, rangeToPoint(range)])
+  return clonePointThresholds(
+    Object.fromEntries(
+      Object.entries(thresholds).map(([metricKey, range]) => [metricKey, rangeToPoint(range)])
+    )
   );
 }
 
@@ -229,7 +250,7 @@ export function loadStoredModeThresholdPoints(): ModeThresholdPoints {
     }
 
     if (Object.keys(normalizedMode).length > 0) {
-      result[modeId] = normalizedMode;
+      result[modeId] = clonePointThresholds(normalizedMode);
     }
   }
 
@@ -255,6 +276,16 @@ function resolveBadBoundaries(point: ThresholdPoint): { lower: number | null; up
   };
 }
 
+function applyToleranceToBoundaryPosition(position: number, tolerancePct: number): number {
+  const clampedPosition = clamp(position, 0, 1);
+  const toleranceRatio = normalizeTolerancePct(tolerancePct) / 99;
+  if (toleranceRatio <= 0 || clampedPosition <= 0 || clampedPosition >= 1) return clampedPosition;
+
+  const distanceFromIdeal = 1 - clampedPosition;
+  const toleranceExponent = 1 + toleranceRatio * 23;
+  return clamp(1 - Math.pow(distanceFromIdeal, toleranceExponent), 0, 1);
+}
+
 export function calculatePointMetricScore(value: number, point: ThresholdPoint): number {
   if (!Number.isFinite(value)) return 0;
 
@@ -265,12 +296,12 @@ export function calculatePointMetricScore(value: number, point: ThresholdPoint):
   if (value < point.ideal) {
     if (lower === null) return 100;
     const position = clamp((value - lower) / Math.max(1, point.ideal - lower), 0, 1);
-    return Math.round(position * 100);
+    return Math.round(applyToleranceToBoundaryPosition(position, point.tolerancePct) * 100);
   }
 
   if (upper === null) return 100;
   const position = clamp((upper - value) / Math.max(1, upper - point.ideal), 0, 1);
-  return Math.round(position * 100);
+  return Math.round(applyToleranceToBoundaryPosition(position, point.tolerancePct) * 100);
 }
 
 export function getPointQuality(value: number, point: ThresholdPoint): "good" | "moderate" | "poor" {

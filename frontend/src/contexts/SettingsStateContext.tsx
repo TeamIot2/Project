@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useRef, useEffect, useCallback, ty
 import { useAuth } from "./AuthContext";
 import { normalizeTimeZone } from "../utils/timeZone";
 
-type NotificationChannel = "none" | "in_app" | "email";
+type NotificationChannel = "none" | "in_app" | "email" | "both";
 
 type CustomMode = {
   id: string;
@@ -34,6 +34,10 @@ interface SettingsState {
 
   notificationChannel: NotificationChannel;
   setNotificationChannel: (v: NotificationChannel) => void;
+  inAppNotificationsEnabled: boolean;
+  setInAppNotificationsEnabled: (v: boolean) => void;
+  emailNotificationsEnabled: boolean;
+  setEmailNotificationsEnabled: (v: boolean) => void;
   criticalAlertsEnabled: boolean;
   setCriticalAlertsEnabled: (v: boolean) => void;
 
@@ -60,6 +64,37 @@ interface SettingsState {
 
 const SettingsStateContext = createContext<SettingsState | null>(null);
 const TIMEZONE_STORAGE_KEY = "userTimeZone";
+const NOTIFICATION_CHANNEL_STORAGE_KEY = "notificationChannel";
+
+function normalizeNotificationChannel(value: unknown): NotificationChannel {
+  if (value === "none" || value === "in_app" || value === "email" || value === "both") {
+    return value;
+  }
+  return "in_app";
+}
+
+function loadStoredNotificationChannel(): NotificationChannel {
+  try {
+    return normalizeNotificationChannel(localStorage.getItem(NOTIFICATION_CHANNEL_STORAGE_KEY));
+  } catch {
+    return "in_app";
+  }
+}
+
+function notificationChannelFromFlags(inAppEnabled: boolean, emailEnabled: boolean): NotificationChannel {
+  if (inAppEnabled && emailEnabled) return "both";
+  if (inAppEnabled) return "in_app";
+  if (emailEnabled) return "email";
+  return "none";
+}
+
+function notificationChannelHasInApp(channel: NotificationChannel): boolean {
+  return channel === "in_app" || channel === "both";
+}
+
+function notificationChannelHasEmail(channel: NotificationChannel): boolean {
+  return channel === "email" || channel === "both";
+}
 
 function loadStoredTimeZone(): string {
   try {
@@ -140,7 +175,7 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
   const [timezone, setTimezoneState] = useState(loadStoredTimeZone);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
-  const [notificationChannel, setNotificationChannel] = useState<NotificationChannel>("in_app");
+  const [notificationChannel, setNotificationChannelState] = useState<NotificationChannel>(loadStoredNotificationChannel);
   const [criticalAlertsEnabled, setCriticalAlertsEnabled] = useState(true);
 
   const [customModes, setCustomModes] = useState<CustomMode[]>(loadStoredCustomModes);
@@ -202,6 +237,25 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
     setTimezoneState(normalizeTimeZone(value));
   }, []);
 
+  const setNotificationChannel = useCallback((value: NotificationChannel) => {
+    setNotificationChannelState(normalizeNotificationChannel(value));
+  }, []);
+
+  const inAppNotificationsEnabled = notificationChannelHasInApp(notificationChannel);
+  const emailNotificationsEnabled = notificationChannelHasEmail(notificationChannel);
+
+  const setInAppNotificationsEnabled = useCallback((enabled: boolean) => {
+    setNotificationChannelState((currentChannel) =>
+      notificationChannelFromFlags(enabled, notificationChannelHasEmail(currentChannel))
+    );
+  }, []);
+
+  const setEmailNotificationsEnabled = useCallback((enabled: boolean) => {
+    setNotificationChannelState((currentChannel) =>
+      notificationChannelFromFlags(notificationChannelHasInApp(currentChannel), enabled)
+    );
+  }, []);
+
   useEffect(() => {
     setTimezoneState(normalizeTimeZone(user?.timezone));
   }, [user?.id, user?.timezone]);
@@ -211,6 +265,12 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TIMEZONE_STORAGE_KEY, timezone);
     } catch { /* ignore */ }
   }, [timezone]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOTIFICATION_CHANNEL_STORAGE_KEY, notificationChannel);
+    } catch { /* ignore */ }
+  }, [notificationChannel]);
 
   const setAvatarFromUser = useCallback((avatarUrl: string | null | undefined) => {
     setAvatarPreview(avatarUrl?.trim() || null);
@@ -268,6 +328,8 @@ export function SettingsStateProvider({ children }: { children: ReactNode }) {
         timezone, setTimezone,
         profileMessage, setProfileMessage,
         notificationChannel, setNotificationChannel,
+        inAppNotificationsEnabled, setInAppNotificationsEnabled,
+        emailNotificationsEnabled, setEmailNotificationsEnabled,
         criticalAlertsEnabled, setCriticalAlertsEnabled,
         customModes, setCustomModes,
         modeMetaOverrides, setModeMetaOverrides,

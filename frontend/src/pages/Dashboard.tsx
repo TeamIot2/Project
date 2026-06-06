@@ -19,12 +19,13 @@ import { useSettingsState } from "../contexts/SettingsStateContext";
 import { useAnimatedNumber } from "../hooks/useAnimatedNumber";
 import { useHeartRate } from "../hooks/useHeartRate";
 import { useI18n } from "../contexts/I18nContext";
-import { apiGet, apiPatch } from "../api";
+import { apiGet, apiPatch, apiPost } from "../api";
 import { sortDevicesByStatus } from "../utils/deviceSorting";
 import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import { withMockModeSuffix } from "../utils/modeLabels";
 import { estimateNoiseDbFromReading, formatApproximateNoiseDb, isNoiseMetricKey } from "../utils/noiseEstimate";
 import { formatClockInTimeZone } from "../utils/timeZone";
+import { ModalPortal } from "../components/ModalPortal";
 import type { EnvironmentalReading, DeviceInfo, MeasurementUptimeResponse, ModeMeasurementStatsResponse, MetricConfig } from "../types";
 import type { Translations } from "../i18n/translations";
 import { METRICS as metrics, METRIC_COLORS as sensorColors, SENSOR_LABEL_KEYS as sensorLabelKeys } from "../constants/chartColors";
@@ -56,6 +57,7 @@ import EnvironmentCarousel from "../components/EnvironmentCarousel";
 
 const READING_REFRESH_INTERVAL_SECONDS = 5;
 const READING_REFRESH_INTERVAL_MS = READING_REFRESH_INTERVAL_SECONDS * 1000;
+const EMAIL_NOTIFICATION_CLIENT_COOLDOWN_MS = 30 * 60 * 1000;
 
 // Map icon names to components
 const iconMap: Record<string, typeof Wind> = {
@@ -389,7 +391,7 @@ export default function Dashboard() {
   const { mode, getQuality, getMetricScore, isCritical, isNotificationReached, setEnvironment } = useEnvironment();
   const { activeStyle } = useVisualStyle();
   const { theme } = useTheme();
-  const { modeMetaOverrides, notificationChannel, criticalAlertsEnabled, timezone } = useSettingsState();
+  const { modeMetaOverrides, inAppNotificationsEnabled, emailNotificationsEnabled, criticalAlertsEnabled, timezone } = useSettingsState();
   const { t, locale } = useI18n();
   const isCs = locale === "cs";
   const getModeLabel = (modeId: EnvironmentMode, fallback: string) =>
@@ -439,6 +441,7 @@ export default function Dashboard() {
   }, [navigate]);
   const classicDeviceSelectionRef = useRef<HTMLDivElement | null>(null);
   const figmaMeasureDevicesRef = useRef<HTMLDivElement | null>(null);
+  const emailNotificationSentAtRef = useRef<Map<string, number>>(new Map());
   const getDisplayName = useCallback(
     (device: Pick<DeviceInfo, "device_id" | "name">) => getDisplayDeviceName(device, t),
     [t]
@@ -1079,7 +1082,7 @@ export default function Dashboard() {
         ? t.quality_moderate
         : t.quality_poor;
   const criticalSensorItems = useMemo(() => {
-    if (!currentReading || !criticalAlertsEnabled || notificationChannel === "none") return [];
+    if (!currentReading || !criticalAlertsEnabled) return [];
 
     return metrics
       .map((metric) => {
@@ -1095,9 +1098,9 @@ export default function Dashboard() {
         };
       })
       .filter((item): item is { key: string; text: string } => item !== null && item.text.length > 0);
-  }, [criticalAlertsEnabled, currentReading, isCritical, locale, notificationChannel, t]);
+  }, [criticalAlertsEnabled, currentReading, isCritical, locale, t]);
   const notificationSensorItems = useMemo(() => {
-    if (!currentReading || notificationChannel === "none") return [];
+    if (!currentReading) return [];
 
     return metrics
       .map((metric) => {
@@ -1115,7 +1118,7 @@ export default function Dashboard() {
         };
       })
       .filter((item): item is { key: string; text: string } => item !== null && item.text.length > 0);
-  }, [criticalAlertsEnabled, currentReading, isCritical, isNotificationReached, locale, notificationChannel, t]);
+  }, [criticalAlertsEnabled, currentReading, isCritical, isNotificationReached, locale, t]);
   const activeNotification = useMemo(() => {
     if (criticalSensorItems.length > 0) {
       const message = isCs
@@ -1128,7 +1131,7 @@ export default function Dashboard() {
       };
     }
 
-    if (notificationSensorItems.length > 0) {
+    if (inAppNotificationsEnabled && notificationSensorItems.length > 0) {
       const message = isCs
         ? `Notifikační hodnota dosažena: ${notificationSensorItems.map((item) => item.text).join(", ")}.`
         : `Notification value reached: ${notificationSensorItems.map((item) => item.text).join(", ")}.`;
@@ -1140,8 +1143,37 @@ export default function Dashboard() {
     }
 
     return null;
+  }, [criticalSensorItems, inAppNotificationsEnabled, isCs, notificationSensorItems]);
+  const emailNotification = useMemo(() => {
+    const tone = criticalSensorItems.length > 0 ? "critical" : "notification";
+    const items = criticalSensorItems.length > 0 ? criticalSensorItems : notificationSensorItems;
+    if (items.length === 0) return null;
+
+    return {
+      dedupeKey: `${tone}:${items.map((item) => item.key).join("|")}`,
+      message: isCs
+        ? `Hodnota dosažena: ${items.map((item) => item.text).join(", ")}.`
+        : `Value reached: ${items.map((item) => item.text).join(", ")}.`,
+    };
   }, [criticalSensorItems, isCs, notificationSensorItems]);
   const shouldShowNotification = Boolean(activeNotification && activeNotification.key !== dismissedNotificationKey);
+
+  useEffect(() => {
+    if (!emailNotificationsEnabled || !emailNotification) return;
+
+    const now = Date.now();
+    const lastSentAt = emailNotificationSentAtRef.current.get(emailNotification.dedupeKey);
+    if (lastSentAt !== undefined && now - lastSentAt < EMAIL_NOTIFICATION_CLIENT_COOLDOWN_MS) return;
+
+    emailNotificationSentAtRef.current.set(emailNotification.dedupeKey, now);
+
+    void apiPost<{ sent: boolean; skipped?: string; configured: boolean }>("/notifications/email", {
+      message: emailNotification.message,
+      dedupeKey: emailNotification.dedupeKey,
+    }).catch((err) => {
+      console.warn("[EmailNotifications] Failed to request notification email:", err);
+    });
+  }, [emailNotification, emailNotificationsEnabled]);
 
   // Desktop hero insight text
   const insightText = generateInsight(currentReading, getQuality, t);
@@ -1798,7 +1830,7 @@ export default function Dashboard() {
         </svg>
         <div className="monitoring-stats-text">
           <span>Total uptime: {modeStatsUptime || "--"}</span>
-          <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+          <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS} s</span>
           <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
         </div>
       </section>
@@ -1932,7 +1964,7 @@ export default function Dashboard() {
                     </svg>
                     <div className="figma-measure-stats-text">
                       <span>Total uptime: {modeStatsUptime || "--"}</span>
-                      <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS}s</span>
+                      <span>Sampling interval: {READING_REFRESH_INTERVAL_SECONDS} s</span>
                       <span>Reliability: {modeStatsReliability !== null ? `${modeStatsReliability}%` : "--"}</span>
                     </div>
                   </div>
@@ -2316,6 +2348,7 @@ export default function Dashboard() {
       )}
 
       {showModeDeviceModal && (
+        <ModalPortal>
         <div className="modal-overlay" onClick={closeModeDeviceModal}>
           <div className="modal-card mode-device-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="mode-device-modal-title">
@@ -2363,10 +2396,12 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Confirmation modal */}
       {showConfirmModal && (
+        <ModalPortal>
         <div className="modal-overlay" onClick={() => setShowConfirmModal(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">
@@ -2402,9 +2437,11 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {deviceSelectionConfirm && (
+        <ModalPortal>
         <div className="modal-overlay" onClick={() => setDeviceSelectionConfirm(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">{deviceSelectionConfirmText}</p>
@@ -2424,9 +2461,11 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {disconnectWarning && (
+        <ModalPortal>
         <div className="modal-overlay" onClick={() => setDisconnectWarning(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <p className="modal-text">{disconnectWarningText}</p>
@@ -2440,6 +2479,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

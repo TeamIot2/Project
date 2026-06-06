@@ -51,6 +51,7 @@ import authRoutes from "./routes/auth";
 import deviceRoutes from "./routes/devices";
 import readingRoutes from "./routes/readings";
 import environmentRoutes from "./routes/environments";
+import notificationRoutes from "./routes/notifications";
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -94,6 +95,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/readings", readingRoutes);
 app.use("/api/environments", environmentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ============================================================
 // Serve frontend (production build)

@@ -12,6 +12,7 @@ import { useSettingsState } from "../contexts/SettingsStateContext";
 import { DUAL_VIEW_MEDIA_QUERY } from "../constants/dualView";
 import { usePanelType } from "./DualViewShell";
 import { Home, BarChart2, Cpu, Settings, Moon, Sun, Briefcase, Activity, LogOut, ChevronDown, Globe, Tree, GraduationCap, Factory, Sprout } from "./Icons";
+import { ModalPortal } from "./ModalPortal";
 import type { EnvironmentMode } from "../types";
 import type { Translations } from "../i18n/translations";
 import { withMockModeSuffix } from "../utils/modeLabels";
@@ -441,6 +442,7 @@ export default function Layout() {
 
       {/* Custom environment mode modal */}
       {envModalOpen && (
+        <ModalPortal>
         <div className="env-modal-overlay" onClick={() => setEnvModalOpen(false)}>
           <div className="env-modal" onClick={(e) => e.stopPropagation()}>
             <h2>{locale === "cs" ? "Vlastní režim" : "Custom Mode"}</h2>
@@ -472,6 +474,7 @@ export default function Layout() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Mobile bottom navigation */}

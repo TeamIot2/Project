@@ -13,6 +13,7 @@ import { useExpandedDevices } from "../contexts/ExpandedDevicesContext";
 import { DEVICE_SENSOR_FIELDS as sensorFields } from "../constants/chartColors";
 import { getDisplayDeviceName } from "../utils/deviceDisplayName";
 import { withMockModeSuffix } from "../utils/modeLabels";
+import { ModalPortal } from "../components/ModalPortal";
 
 const ALL_ENV_MODES: EnvironmentMode[] = [
   "sleep",
@@ -149,7 +150,8 @@ function DeviceRow({
   onRenameDevice: (deviceId: string, nextName: string) => Promise<void>;
   onDisconnectDevice: (deviceId: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isCs = locale === "cs";
   const { modeMetaOverrides } = useSettingsState();
   const {
     deviceModeAssignments,
@@ -306,7 +308,9 @@ function DeviceRow({
           </div>
 
           <div className="device-mode-row">
-            <span className="device-mode-label">This device contributes to these modes:</span>
+            <span className="device-mode-label">
+              {isCs ? "Toto zařízení poskytuje data pro tyto režimy:" : "This device contributes to these modes:"}
+            </span>
             <div className="device-mode-chips">
               {ALL_ENV_MODES.map((envMode) => {
                 const isActive = assignedModes.includes(envMode);
@@ -344,7 +348,7 @@ function DeviceRow({
             </div>
           </div>
 
-          <h4 className="device-measures-heading">This device measures:</h4>
+          <h4 className="device-measures-heading">{isCs ? "Toto zařízení měří:" : "This device measures:"}</h4>
           <div className="device-sensors-grid">
             {sensorFields.map((sf) => {
               const SensorIcon = sensorIconMap[sf.key] ?? Co2Molecule;
@@ -446,9 +450,15 @@ export default function Devices() {
     discoveryCandidates.find((candidate) => candidate.id === selectedDiscoveryCandidateId) ?? null;
   const canSaveNewDevice =
     discoveryCandidates.length > 0 && selectedDiscoveryCandidate !== null && newDeviceName.trim().length > 0;
-  const connectModeHelp = selectedDiscoveryCandidate
-    ? null
-    : (isCs ? "Režimy půjde vybrat po nalezení a označení zařízení." : "Modes can be selected after a device is found and selected.");
+  const connectSearchButtonLabel = isCs ? "Hledat zařízení" : "Search for devices";
+  const connectBusyLabel = isCs ? "Čekám na prohlížeč..." : "Waiting for browser...";
+  const connectModeSectionLabel = isCs
+    ? "Toto zařízení bude poskytovat data pro tyto režimy:"
+    : "This device contributes to these modes:";
+  const connectSelectedLabel = isCs ? "Vybráno" : "Selected";
+  const connectSelectLabel = isCs ? "Vybrat" : "Select";
+  const connectSaveLabel = isCs ? "Uložit" : "Save";
+  const connectSavingLabel = isCs ? "Ukládám..." : "Saving...";
   const getConnectModeLabel = (envMode: EnvironmentMode, fallback: string) =>
     withMockModeSuffix(envMode, modeMetaOverrides[envMode]?.name ?? fallback);
   const connectModeLabels: Record<EnvironmentMode, string> = {
@@ -770,6 +780,13 @@ export default function Devices() {
     return source.split("/")[0].trim();
   }
 
+  function getConnectModeChipTitle(isActive: boolean): string {
+    if (!selectedDiscoveryCandidate) return isCs ? "Nejdřív vyber zařízení." : "Select a device first.";
+    return isActive
+      ? (isCs ? "Kliknutím odebrat režim" : "Click to remove mode")
+      : (isCs ? "Kliknutím přidat režim" : "Click to add mode");
+  }
+
   function toggleNewDeviceMode(targetMode: EnvironmentMode) {
     if (!selectedDiscoveryCandidate) return;
 
@@ -866,6 +883,7 @@ export default function Devices() {
       </div>
 
       {disconnectTarget && (
+        <ModalPortal>
         <div className="modal-overlay" onMouseDown={handleDisconnectOverlayMouseDown}>
           <div
             className="modal-card settings-alert-confirm-modal devices-disconnect-confirm-modal"
@@ -910,9 +928,11 @@ export default function Devices() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {connectModalOpen && (
+        <ModalPortal>
         <div className="modal-overlay" onMouseDown={handleConnectOverlayMouseDown}>
           <div
             className="modal-card devices-connect-modal"
@@ -945,7 +965,7 @@ export default function Devices() {
               disabled={discoveryBusy !== null}
             >
               <Search size={18} />
-              <span>{discoveryBusy === "known" ? discoveryText.busy : discoveryText.searchButton}</span>
+              <span>{discoveryBusy === "known" ? connectBusyLabel : connectSearchButtonLabel}</span>
             </button>
 
             {(discoveryCandidates.length > 0 || discoveryMessage) && (
@@ -972,8 +992,11 @@ export default function Devices() {
                             <p>{candidate.methodLabel}</p>
                             <p>{candidate.detail}</p>
                           </div>
-                          <span className="devices-connect-selected-indicator">
-                            {isSelected ? (isCs ? "Vybráno" : "Selected") : (isCs ? "Vybrat" : "Select")}
+                          <span
+                            className="devices-connect-selected-indicator"
+                            aria-label={isSelected ? connectSelectedLabel : connectSelectLabel}
+                          >
+                            {isSelected ? connectSelectedLabel : connectSelectLabel}
                           </span>
                         </button>
                       );
@@ -996,7 +1019,7 @@ export default function Devices() {
             </div>
 
             <div className="device-mode-row devices-connect-mode-row">
-              <span className="device-mode-label">This device contributes to these modes:</span>
+              <span className="device-mode-label">{connectModeSectionLabel}</span>
               <div className="device-mode-chips">
                 {ALL_ENV_MODES.map((envMode) => {
                   const isActive = newDeviceModes.includes(envMode);
@@ -1009,14 +1032,13 @@ export default function Devices() {
                       onClick={() => toggleNewDeviceMode(envMode)}
                       disabled={!selectedDiscoveryCandidate}
                       aria-pressed={isActive}
-                      title={connectModeHelp ?? (isActive ? "Click to remove mode" : "Click to add mode")}
+                      title={getConnectModeChipTitle(isActive)}
                     >
                       {getShortModeLabel(envMode)}
                     </button>
                   );
                 })}
               </div>
-              {connectModeHelp && <p className="devices-connect-mode-help">{connectModeHelp}</p>}
             </div>
 
             {connectMessage && <p className="devices-connect-message">{connectMessage}</p>}
@@ -1025,15 +1047,22 @@ export default function Devices() {
               <button className="btn btn-outline" onClick={resetConnectModal}>
                 {t.close}
               </button>
-              <button className="btn btn-primary" onClick={() => void handleConnectDevice()} disabled={!canSaveNewDevice || savingNewDevice}>
-                {savingNewDevice ? (isCs ? "Ukládám..." : "Saving...") : (isCs ? "Uložit" : "Save")}
+              <button
+                className="btn btn-primary"
+                onClick={() => void handleConnectDevice()}
+                disabled={!canSaveNewDevice || savingNewDevice}
+                aria-label={savingNewDevice ? connectSavingLabel : connectSaveLabel}
+              >
+                {savingNewDevice ? connectSavingLabel : connectSaveLabel}
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {searchModalOpen && (
+        <ModalPortal>
         <div className="modal-overlay" onMouseDown={handleSearchOverlayMouseDown}>
           <div
             className="modal-card devices-search-modal"
@@ -1186,6 +1215,7 @@ export default function Devices() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

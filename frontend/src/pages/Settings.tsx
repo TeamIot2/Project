@@ -9,6 +9,7 @@ import { useEnvironment } from "../contexts/EnvironmentContext";
 import { useI18n } from "../contexts/I18nContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useSettingsState } from "../contexts/SettingsStateContext";
+import { ModalPortal } from "../components/ModalPortal";
 import type { EnvironmentMode, ThresholdRange, User } from "../types";
 import {
   clonePointThresholds,
@@ -56,13 +57,13 @@ const UNSAFE_TEXT_PATTERN = /[<>\\{}[\]`]/;
 const CONTROL_TEXT_PATTERN = /[\u0000-\u001F\u007F]/;
 const PROFILE_SCROLL_OFFSET_PX = 18;
 const RECOMMENDED_CZ_THRESHOLD_POINTS: Record<string, ThresholdPoint> = {
-  co2_ppm: { ideal: 0, lowerBad: null, upperBad: 1500, notification: 1000, critical: 2000 },
-  temperature_c: { ideal: 21, lowerBad: 10, upperBad: 30, notification: 28, critical: 35 },
-  humidity_pct: { ideal: 45, lowerBad: 25, upperBad: 75, notification: 70, critical: 90 },
-  pressure_hpa: { ideal: 1013, lowerBad: 970, upperBad: 1050, notification: 1045, critical: 1070 },
-  light_lux: { ideal: 500, lowerBad: 50, upperBad: 1200, notification: 1000, critical: 2000 },
-  noise_adc: { ideal: 30, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
-  sound_level_adc: { ideal: 30, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
+  co2_ppm: { ideal: 0, tolerancePct: 0, lowerBad: null, upperBad: 1500, notification: 1000, critical: 2000 },
+  temperature_c: { ideal: 21, tolerancePct: 0, lowerBad: 10, upperBad: 30, notification: 28, critical: 35 },
+  humidity_pct: { ideal: 45, tolerancePct: 0, lowerBad: 25, upperBad: 75, notification: 70, critical: 90 },
+  pressure_hpa: { ideal: 1013, tolerancePct: 0, lowerBad: 970, upperBad: 1050, notification: 1045, critical: 1070 },
+  light_lux: { ideal: 500, tolerancePct: 0, lowerBad: 50, upperBad: 1200, notification: 1000, critical: 2000 },
+  noise_adc: { ideal: 30, tolerancePct: 0, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
+  sound_level_adc: { ideal: 30, tolerancePct: 0, lowerBad: null, upperBad: 75, notification: 70, critical: 85 },
 };
 
 function normalizeEnvironmentText(value: string): string {
@@ -121,15 +122,18 @@ function storedToPointThresholds(
   const fallback = thresholdsToPoints(fallbackRanges);
   if (!storedMode) return fallback;
 
-  const result = clonePointThresholds(fallback);
+  const storedPoints: Record<string, ThresholdPoint> = {};
   for (const [metricKey, storedThreshold] of Object.entries(storedMode)) {
     const normalizedThreshold = storedThresholdToPoint(storedThreshold);
     if (normalizedThreshold) {
-      result[metricKey] = normalizeThresholdPointForMetric(metricKey, normalizedThreshold);
+      storedPoints[metricKey] = normalizeThresholdPointForMetric(metricKey, normalizedThreshold);
     }
   }
 
-  return result;
+  return clonePointThresholds({
+    ...fallback,
+    ...clonePointThresholds(storedPoints),
+  });
 }
 
 export default function Settings() {
@@ -144,7 +148,9 @@ export default function Settings() {
     nickname, setNickname,
     timezone, setTimezone,
     profileMessage, setProfileMessage,
-    notificationChannel, setNotificationChannel,
+    setNotificationChannel,
+    inAppNotificationsEnabled, setInAppNotificationsEnabled,
+    emailNotificationsEnabled, setEmailNotificationsEnabled,
     criticalAlertsEnabled, setCriticalAlertsEnabled,
     customModes, setCustomModes,
     modeMetaOverrides, setModeMetaOverrides,
@@ -318,6 +324,26 @@ export default function Settings() {
       desc: isCs ? "Notifikace budou posílány i na e-mail." : "Notifications will also be sent by email.",
     },
   ] as const;
+
+  const isNotificationOptionActive = (optionId: (typeof notificationOptions)[number]["id"]) => {
+    if (optionId === "none") return !inAppNotificationsEnabled && !emailNotificationsEnabled;
+    if (optionId === "in_app") return inAppNotificationsEnabled;
+    return emailNotificationsEnabled;
+  };
+
+  const handleNotificationOptionClick = (optionId: (typeof notificationOptions)[number]["id"]) => {
+    if (optionId === "none") {
+      setNotificationChannel("none");
+      return;
+    }
+
+    if (optionId === "in_app") {
+      setInAppNotificationsEnabled(!inAppNotificationsEnabled);
+      return;
+    }
+
+    setEmailNotificationsEnabled(!emailNotificationsEnabled);
+  };
 
   const initials = useMemo(() => {
     const parts = displayName.split(" ").filter(Boolean).slice(0, 2);
@@ -716,6 +742,9 @@ export default function Settings() {
   ) {
     const parsed = parseThresholdNumber(rawValue);
     if (thresholdKey === "ideal" && parsed === null) return;
+    const nextValue = thresholdKey === "tolerancePct"
+      ? Math.max(0, Math.min(99, Math.round(parsed ?? 0)))
+      : parsed;
 
     setModeThresholdDrafts((prev) => {
       const modeDraft = prev[modeId];
@@ -730,7 +759,7 @@ export default function Settings() {
           ...modeDraft,
           [metricKey]: {
             ...metricThreshold,
-            [thresholdKey]: parsed,
+            [thresholdKey]: nextValue,
           },
         },
       };
@@ -763,6 +792,7 @@ export default function Settings() {
           metricKey,
           cloneThresholdPoint(RECOMMENDED_CZ_THRESHOLD_POINTS[metricKey] ?? {
             ideal: 50,
+            tolerancePct: 0,
             lowerBad: 0,
             upperBad: 100,
             notification: 90,
@@ -827,7 +857,7 @@ export default function Settings() {
           MODE_THRESHOLD_STORAGE_KEY,
           JSON.stringify({
             ...stored,
-            [newCustomModeId]: draft,
+            [newCustomModeId]: clonePointThresholds(draft),
             [CREATE_MODE_ID]: thresholdsToPoints(defaultThresholdTemplate),
           })
         );
@@ -853,7 +883,7 @@ export default function Settings() {
         MODE_THRESHOLD_STORAGE_KEY,
         JSON.stringify({
           ...stored,
-          [modeId]: draft,
+          [modeId]: clonePointThresholds(draft),
         })
       );
       notifyModeThresholdsUpdated();
@@ -1011,13 +1041,28 @@ export default function Settings() {
                 <article key={metricKey} className="mode-editor-card">
                   <h4 className="mode-editor-metric">{metricLabels[metricKey] ?? metricKey}</h4>
                   <div className="mode-editor-inputs">
-                    <label className="mode-editor-input-group mode-editor-input-group-full">
+                    <label className="mode-editor-input-group">
                       <span>{isCs ? "Ideální hodnota" : "Ideal value"}</span>
                       <input
                         type="number"
                         className="form-input mode-editor-input"
                         value={threshold.ideal}
                         onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "ideal", event.target.value)}
+                      />
+                    </label>
+                    <label className="mode-editor-input-group mode-editor-input-group-tolerance">
+                      <span className="mode-editor-tolerance-label">
+                        <span>{isCs ? "!TOLERANCE HODNOCENÍ %" : "!SCORING TOLERANCE %"}</span>
+                        <output>{threshold.tolerancePct}</output>
+                      </span>
+                      <input
+                        type="range"
+                        className="mode-editor-tolerance-slider"
+                        min="0"
+                        max="99"
+                        step="1"
+                        value={threshold.tolerancePct}
+                        onChange={(event) => updateModeThreshold(expandedModeId, metricKey, "tolerancePct", event.target.value)}
                       />
                     </label>
                     <label className="mode-editor-input-group">
@@ -1250,9 +1295,9 @@ export default function Settings() {
                 <button
                   key={option.id}
                   type="button"
-                  className={`settings-notification-option ${notificationChannel === option.id ? "active" : ""}`}
-                  onClick={() => setNotificationChannel(option.id)}
-                  aria-pressed={notificationChannel === option.id}
+                  className={`settings-notification-option ${isNotificationOptionActive(option.id) ? "active" : ""}`}
+                  onClick={() => handleNotificationOptionClick(option.id)}
+                  aria-pressed={isNotificationOptionActive(option.id)}
                 >
                   <span className="settings-notification-option-label">{option.label}</span>
                   <span className="settings-notification-option-desc">{option.desc}</span>
@@ -1281,72 +1326,78 @@ export default function Settings() {
       </section>
 
       {showDisableCriticalAlertsModal && (
-        <div className="modal-overlay" onClick={closeDisableCriticalAlertsModal}>
-          <div
-            className="modal-card settings-alert-confirm-modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="modal-text">
-              {isCs
-                ? "Opravdu chcete vypnout notifikace o měření nebezpečných hodnot? Můžete je kdykoliv znovu zapnout."
-                : "Are you sure you want to disable dangerous-value measurement alerts? You can enable them again anytime."}
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={closeDisableCriticalAlertsModal}>
-                {isCs ? "Zrušit" : "Cancel"}
-              </button>
-              <button className="btn btn-danger" onClick={disableCriticalAlertsWithConfirm}>
-                {isCs ? "Ano, vypnout" : "Yes, disable"}
-              </button>
+        <ModalPortal>
+          <div className="modal-overlay" onClick={closeDisableCriticalAlertsModal}>
+            <div
+              className="modal-card settings-alert-confirm-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className="modal-text">
+                {isCs
+                  ? "Opravdu chcete vypnout notifikace o měření nebezpečných hodnot? Můžete je kdykoliv znovu zapnout."
+                  : "Are you sure you want to disable dangerous-value measurement alerts? You can enable them again anytime."}
+              </p>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={closeDisableCriticalAlertsModal}>
+                  {isCs ? "Zrušit" : "Cancel"}
+                </button>
+                <button className="btn btn-danger" onClick={disableCriticalAlertsWithConfirm}>
+                  {isCs ? "Ano, vypnout" : "Yes, disable"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {deleteEnvironmentTarget && (
-        <div className="modal-overlay" onClick={closeDeleteEnvironmentModal}>
-          <div
-            className="modal-card settings-alert-confirm-modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="modal-text">
-              {isCs
-                ? `Opravdu si přejete trvale smazat prostředí "${deleteEnvironmentTarget.name}"? Smažou se i jeho uložené hodnoty.`
-                : `Are you sure you want to permanently delete the environment "${deleteEnvironmentTarget.name}"? Its saved values will also be removed.`}
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={closeDeleteEnvironmentModal}>
-                {isCs ? "Zrušit" : "Cancel"}
-              </button>
-              <button className="btn btn-danger" onClick={confirmDeleteEnvironment}>
-                {isCs ? "Ano, smazat prostředí" : "Yes, delete environment"}
-              </button>
+        <ModalPortal>
+          <div className="modal-overlay" onClick={closeDeleteEnvironmentModal}>
+            <div
+              className="modal-card settings-alert-confirm-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className="modal-text">
+                {isCs
+                  ? `Opravdu si přejete trvale smazat prostředí "${deleteEnvironmentTarget.name}"? Smažou se i jeho uložené hodnoty.`
+                  : `Are you sure you want to permanently delete the environment "${deleteEnvironmentTarget.name}"? Its saved values will also be removed.`}
+              </p>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={closeDeleteEnvironmentModal}>
+                  {isCs ? "Zrušit" : "Cancel"}
+                </button>
+                <button className="btn btn-danger" onClick={confirmDeleteEnvironment}>
+                  {isCs ? "Ano, smazat prostředí" : "Yes, delete environment"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {showDeleteProfileModal && (
-        <div className="modal-overlay" onClick={closeDeleteProfileModal}>
-          <div
-            className="modal-card settings-alert-confirm-modal"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="modal-text">
-              {isCs
-                ? "Opravdu si přejete trvale smazat svůj profil?"
-                : "Are you sure you want to permanently delete your profile?"}
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={closeDeleteProfileModal}>
-                {isCs ? "Zrušit" : "Cancel"}
-              </button>
-              <button className="btn btn-danger" onClick={confirmDeleteProfile}>
-                {isCs ? "Ano, smazat profil" : "Yes, delete profile"}
-              </button>
+        <ModalPortal>
+          <div className="modal-overlay" onClick={closeDeleteProfileModal}>
+            <div
+              className="modal-card settings-alert-confirm-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <p className="modal-text">
+                {isCs
+                  ? "Opravdu si přejete trvale smazat svůj profil?"
+                  : "Are you sure you want to permanently delete your profile?"}
+              </p>
+              <div className="modal-actions">
+                <button className="btn btn-outline" onClick={closeDeleteProfileModal}>
+                  {isCs ? "Zrušit" : "Cancel"}
+                </button>
+                <button className="btn btn-danger" onClick={confirmDeleteProfile}>
+                  {isCs ? "Ano, smazat profil" : "Yes, delete profile"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
